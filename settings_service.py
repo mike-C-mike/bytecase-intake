@@ -11,7 +11,7 @@ SUITE_NAME = "ByteCase"
 PUBLISHER_NAME = "Forensics Byte"
 PRODUCT_DOMAIN = "byte-case.com"
 
-TOOL_FOLDER_NAME = "bytecase-intake"
+TOOL_FOLDER_NAME = "intake"
 DEFAULT_ROOT_FOLDER_NAME = "ByteCase"
 
 
@@ -216,7 +216,7 @@ def get_case_tool_paths(settings, case_number):
     Returns the shared ByteCase folder structure for this tool.
 
     Example:
-    C:\\Users\\Matt\\ByteCase\\2600001\\bytecase-intake
+    C:\\Users\\Matt\\ByteCase\\2600001\\intake
     """
     root_dir = get_output_root(settings)
     case_folder_name = safe_case_folder_name(case_number)

@@ -5,8 +5,15 @@ from tkinter import filedialog, messagebox, ttk
 from request_core import build_request_packet, save_request_outputs
 from settings_service import (
     APP_NAME,
+    APP_SUBTITLE,
     APP_VERSION,
-    ensure_directories,
+    DEFAULT_ROOT_FOLDER_NAME,
+    PRODUCT_DOMAIN,
+    PUBLISHER_NAME,
+    SUITE_NAME,
+    TOOL_FOLDER_NAME,
+    get_case_tool_paths,
+    get_default_output_root,
     load_or_create_settings,
     save_settings,
 )
@@ -132,7 +139,7 @@ def blank_item():
 class DigitalForensicsRequestApp:
     def __init__(self, root):
         self.root = root
-        self.root.title(f"{APP_NAME} v{APP_VERSION}")
+        self.root.title(f"{APP_NAME} - {APP_SUBTITLE} v{APP_VERSION}")
         self.root.geometry("1260x850")
 
         self.settings = load_or_create_settings()
@@ -259,8 +266,15 @@ class DigitalForensicsRequestApp:
         top.columnconfigure(0, weight=1)
 
         ttk.Label(top, text=f"{APP_NAME} v{APP_VERSION}", style="Title.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Label(
+            top,
+            text=f"{APP_SUBTITLE} | Part of {SUITE_NAME} by {PUBLISHER_NAME}",
+            style="Muted.TLabel",
+        ).grid(row=1, column=0, sticky="w")
+
         ttk.Button(top, text="Settings", command=self.open_settings).grid(row=0, column=1, padx=4)
-        ttk.Button(top, text="Open Output Folder", command=self.open_output_folder).grid(row=0, column=2, padx=4)
+        ttk.Button(top, text="About", command=self.open_about).grid(row=0, column=2, padx=4)
+        ttk.Button(top, text="Open Output Folder", command=self.open_output_folder).grid(row=0, column=3, padx=4)
 
         main = ttk.Frame(self.root, padding=(10, 0, 10, 10))
         main.grid(row=1, column=0, sticky="nsew")
@@ -826,7 +840,7 @@ class DigitalForensicsRequestApp:
         options = packet.get("report_options", {})
 
         lines = [
-            "DIGITAL FORENSICS REQUEST REVIEW",
+            "BYTECASE INTAKE REQUEST REVIEW",
             "=" * 80,
             "",
             f"Case Number: {case.get('case_number', '')}",
@@ -860,7 +874,7 @@ class DigitalForensicsRequestApp:
             self.status_var.set("Request exported successfully.")
             messagebox.showinfo(
                 "Request Exported",
-                "Digital forensics request exported successfully.\n\n"
+                "ByteCase Intake request packet exported successfully.\n\n"
                 f"Request Folder:\n{request_folder}\n\n"
                 f"TXT:\n{txt_path}\n\n"
                 f"DOCX:\n{docx_path}\n\n"
@@ -927,10 +941,21 @@ class DigitalForensicsRequestApp:
         self.status_var.set("Form cleared.")
 
     def open_output_folder(self):
+        case_number = self.case_number_var.get().strip() if hasattr(self, "case_number_var") else ""
+
         try:
-            os.startfile(ensure_directories(self.settings)["requests_dir"])
+            if case_number:
+                path = get_case_tool_paths(self.settings, case_number)["tool_dir"]
+            else:
+                path = get_default_output_root()
+
+            path.mkdir(parents=True, exist_ok=True)
+            os.startfile(path)
         except OSError as exc:
             messagebox.showerror("Open Output Folder Error", str(exc))
+
+    def open_about(self):
+        AboutWindow(self)
 
     def open_settings(self):
         SettingsWindow(self)
@@ -948,6 +973,102 @@ class DigitalForensicsRequestApp:
             self.handoff_notes_text,
         ]:
             self.style_text(widget)
+
+class AboutWindow:
+    def __init__(self, app):
+        self.app = app
+
+        self.window = tk.Toplevel(app.root)
+        self.window.title(f"About {APP_NAME}")
+        self.window.geometry("840x660")
+        self.window.transient(app.root)
+        self.window.grab_set()
+        self.window.configure(bg=app.colors["bg"])
+
+        self.build()
+
+    def build(self):
+        frame = ttk.Frame(self.window, padding=14)
+        frame.pack(fill="both", expand=True)
+        frame.columnconfigure(0, weight=1)
+        frame.rowconfigure(1, weight=1)
+
+        ttk.Label(frame, text=f"{APP_NAME} v{APP_VERSION}", style="Title.TLabel").grid(row=0, column=0, sticky="w")
+
+        about_text = tk.Text(frame, wrap="word", height=28)
+        about_text.grid(row=1, column=0, sticky="nsew", pady=(10, 10))
+        self.app.style_text(about_text)
+
+        content = f"""BYTECASE INTAKE
+
+{APP_SUBTITLE}
+
+Part of the {SUITE_NAME} toolset by {PUBLISHER_NAME}
+Product domain: {PRODUCT_DOMAIN}
+
+PURPOSE
+
+ByteCase Intake helps investigators create clear, scoped, well-documented digital forensic request packets before forensic work begins.
+
+The tool is designed to help capture:
+- Case and investigator information
+- Evidence or device items being submitted
+- Legal authority and scope information
+- Requested forensic actions
+- Investigative objective and known facts
+- Supporting documents and attachment indexes
+- Submission and handoff information
+
+PLATFORM IDEOLOGY
+
+ByteCase tools are built around a simple principle:
+
+Bake in best practices, structure, and guidance while preserving enough flexibility for agencies to customize their workflow.
+
+Small and medium agencies do not always have rigid digital forensics workflows, dedicated lab-management systems, or standardized request processes. ByteCase is designed to support practical documentation without forcing every agency into one model.
+
+The tool should guide better submissions, reduce repeat typing, and create clearer handoffs between investigators and examiners.
+
+WHAT THIS TOOL DOES NOT DO
+
+ByteCase Intake does not perform forensic acquisition, extraction, hashing, parsing, artifact analysis, legal review, or investigative conclusions.
+
+It creates a request packet based on information provided by the investigator or submitting party.
+
+Legal authority, scope, and agency policy should be reviewed under the user's agency procedures and applicable law before forensic work begins.
+
+OUTPUT PHILOSOPHY
+
+ByteCase tools are designed to create transparent case folders.
+
+Default root folder:
+{get_default_output_root()}
+
+Current tool folder:
+{TOOL_FOLDER_NAME}
+
+Typical structure:
+{DEFAULT_ROOT_FOLDER_NAME}/<case_number>/{TOOL_FOLDER_NAME}/
+
+Generated outputs and copied supporting documents are kept together so the request packet can travel with related warrants, consent forms, scope memos, notes, screenshots, and other supporting documents.
+
+ATTRIBUTION
+
+Created by Matt McBride.
+Published under the Forensics Byte brand.
+
+Suite: {SUITE_NAME}
+Tool: {APP_NAME}
+Domain: {PRODUCT_DOMAIN}
+"""
+
+        about_text.insert("1.0", content)
+        about_text.configure(state="disabled")
+
+        button_frame = ttk.Frame(frame)
+        button_frame.grid(row=2, column=0, sticky="e")
+        ttk.Button(button_frame, text="Close", command=self.window.destroy).pack(side="right")
+
 
 class AttachmentWindow:
     def __init__(self, app, title, attachment=None, index=None):
@@ -1163,7 +1284,7 @@ class SettingsWindow:
         self.app = app
         self.settings = app.settings.copy()
         self.window = tk.Toplevel(app.root)
-        self.window.title("Settings")
+        self.window.title("ByteCase Intake Settings")
         self.window.geometry("780x660")
         self.window.transient(app.root)
         self.window.grab_set()
@@ -1226,7 +1347,8 @@ class SettingsWindow:
 
         note = (
             "The branding image is optional and is used only in DOCX output. "
-            "Supported formats: PNG, JPG, JPEG."
+            "Supported formats: PNG, JPG, JPEG. "
+            f"If Base Output Folder is blank, exports default to {get_default_output_root()} with one folder per case number."
         )
         ttk.Label(frame, text=note, style="Muted.TLabel", wraplength=680).grid(
             row=8,
@@ -1297,8 +1419,7 @@ class SettingsWindow:
                 "appearance": {"theme": self.theme_var.get()},
                 "output_paths": {
                     "base_output_dir": self.base_output_var.get().strip(),
-                    "requests_folder_name": "output",
-                    "saved_requests_folder_name": "saved_requests",
+                    "use_shared_bytecase_root": True,
                 },
                 "report_branding": {"patch_image_path": self.patch_image_var.get().strip()},
                 "report_defaults": {"include_acknowledgement_block": self.ack_var.get()},
