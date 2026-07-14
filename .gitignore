@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+settings.json
+output/
+saved_requests/
+dist/
+build/
+release/

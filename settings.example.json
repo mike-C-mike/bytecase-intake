@@ -1,0 +1,23 @@
+{
+  "agency_name": "Example Police Department",
+  "unit_name": "Digital Forensics Unit",
+  "default_investigator": "Example Investigator",
+  "investigators": [
+    "Example Investigator",
+    "Second Example Investigator"
+  ],
+  "appearance": {
+    "theme": "dark"
+  },
+  "output_paths": {
+    "base_output_dir": "",
+    "requests_folder_name": "output",
+    "saved_requests_folder_name": "saved_requests"
+  },
+  "report_branding": {
+    "patch_image_path": ""
+  },
+  "report_defaults": {
+    "include_acknowledgement_block": true
+  }
+}
