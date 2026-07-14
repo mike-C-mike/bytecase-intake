@@ -1,6 +1,8 @@
 {
+  "suite_name": "ByteCase",
+  "publisher": "Forensics Byte",
   "agency_name": "Example Police Department",
-  "unit_name": "Digital Forensics Unit",
+  "unit_name": "Digital Evidence Unit",
   "default_investigator": "Example Investigator",
   "investigators": [
     "Example Investigator",
@@ -11,8 +13,7 @@
   },
   "output_paths": {
     "base_output_dir": "",
-    "requests_folder_name": "output",
-    "saved_requests_folder_name": "saved_requests"
+    "use_shared_bytecase_root": true
   },
   "report_branding": {
     "patch_image_path": ""

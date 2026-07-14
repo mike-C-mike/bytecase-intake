@@ -93,6 +93,36 @@ def add_evidence_items(document, items):
             ("Item Notes", item.get("item_notes", "")),
         ])
 
+def add_attachments(document, attachments):
+    document.add_heading("Attachment Index", level=1)
+
+    if not attachments:
+        document.add_paragraph("No supporting documents listed.")
+        return
+
+    for attachment in attachments:
+        number = attachment.get("attachment_number", "")
+        attachment_type = attachment.get("attachment_type", "")
+        heading_text = f"Attachment {number}"
+
+        if attachment_type:
+            heading_text += f" - {attachment_type}"
+
+        document.add_heading(heading_text, level=2)
+
+        add_key_value_table(document, [
+            ("Type", attachment.get("attachment_type", "")),
+            ("File Name", attachment.get("file_name", "")),
+            ("Source Path", attachment.get("source_path", "")),
+            ("Copied Path", attachment.get("copied_path", "")),
+            ("Copy Status", attachment.get("copy_status", "")),
+            ("Copy Error", attachment.get("copy_error", "")),
+            ("Related Item", attachment.get("related_item", "")),
+            ("Document Date", attachment.get("document_date", "")),
+            ("Provided By", attachment.get("provided_by", "")),
+            ("Description", attachment.get("description", "")),
+            ("Notes", attachment.get("notes", "")),
+        ])
 
 def build_docx_request(packet, settings):
     document = Document()
@@ -105,6 +135,7 @@ def build_docx_request(packet, settings):
     authority = packet.get("legal_authority", {})
     scope = packet.get("scope", {})
     items = packet.get("evidence_items", [])
+    attachments = packet.get("attachments", [])
     details = packet.get("request_details", {})
     priority = packet.get("priority_info", {})
     handoff = packet.get("handoff_info", {})
@@ -177,7 +208,7 @@ def build_docx_request(packet, settings):
     ])
 
     add_evidence_items(document, items)
-
+    add_attachments(document, attachments)
     document.add_heading("Requested Forensic Actions", level=1)
     add_bullets(document, details.get("requested_actions", []))
 

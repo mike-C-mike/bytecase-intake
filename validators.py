@@ -1,3 +1,6 @@
+from pathlib import Path
+
+
 def validate_request_for_export(packet):
     errors = []
     warnings = []
@@ -7,6 +10,7 @@ def validate_request_for_export(packet):
     authority = packet.get("legal_authority", {})
     scope = packet.get("scope", {})
     evidence_items = packet.get("evidence_items", [])
+    attachments = packet.get("attachments", [])
     details = packet.get("request_details", {})
 
     if not case.get("case_number", "").strip():
@@ -41,5 +45,29 @@ def validate_request_for_export(packet):
 
     if scope.get("keyword_limited") and not scope.get("authorized_keywords", "").strip():
         warnings.append("Keyword limitation is selected, but no keywords were entered.")
+
+    for index, attachment in enumerate(attachments, start=1):
+        source_path = attachment.get("source_path", "").strip()
+        description = attachment.get("description", "").strip()
+        attachment_type = attachment.get("attachment_type", "").strip()
+
+        label = attachment.get("attachment_number", "").strip() or str(index).zfill(3)
+
+        if not attachment_type:
+            warnings.append(f"Attachment {label} does not have an attachment type selected.")
+
+        if not source_path:
+            warnings.append(f"Attachment {label} does not have a source file path.")
+            continue
+
+        path = Path(source_path)
+
+        if not path.exists():
+            warnings.append(f"Attachment {label} source file does not exist: {source_path}")
+        elif not path.is_file():
+            warnings.append(f"Attachment {label} source path is not a file: {source_path}")
+
+        if not description:
+            warnings.append(f"Attachment {label} does not have a description.")
 
     return errors, warnings

@@ -81,6 +81,35 @@ URGENCY_FLAGS = [
     "Other exigency",
 ]
 
+ATTACHMENT_TYPES = [
+    "",
+    "Search Warrant",
+    "Consent Form",
+    "Court Order",
+    "Subpoena",
+    "Photograph",
+    "Screenshot",
+    "Prior Report",
+    "Case Notes",
+    "Cloud Return",
+    "Vendor Export",
+    "Scope Memo",
+    "Other",
+]
+
+
+def blank_attachment():
+    return {
+        "attachment_number": "",
+        "attachment_type": "",
+        "source_path": "",
+        "file_name": "",
+        "description": "",
+        "related_item": "",
+        "document_date": "",
+        "provided_by": "",
+        "notes": "",
+    }
 
 def blank_item():
     return {
@@ -111,6 +140,7 @@ class DigitalForensicsRequestApp:
         self.urgency_vars = {}
         self.scope_vars = {}
         self.evidence_items = []
+        self.attachments = []
 
         self.apply_theme()
         self.build_gui()
@@ -242,6 +272,7 @@ class DigitalForensicsRequestApp:
 
         self.build_case_tab(notebook)
         self.build_items_tab(notebook)
+        self.build_attachments_tab(notebook)
         self.build_request_tab(notebook)
         self.build_priority_tab(notebook)
 
@@ -355,6 +386,67 @@ class DigitalForensicsRequestApp:
         helper = (
             "Add one or more submitted devices, media, or digital returns. "
             "Keep this practical; more detailed examiner work belongs in the acquisition packet."
+        )
+        ttk.Label(frame, text=helper, style="Muted.TLabel", wraplength=1100).grid(row=2, column=0, sticky="w", pady=(10, 0))
+
+    def build_attachments_tab(self, notebook):
+        frame = ttk.Frame(notebook, padding=10)
+        notebook.add(frame, text="Attachments")
+        frame.columnconfigure(0, weight=1)
+        frame.rowconfigure(0, weight=1)
+
+        table_frame = ttk.LabelFrame(frame, text="Supporting Documents / Attachment Index", padding=10)
+        table_frame.grid(row=0, column=0, sticky="nsew")
+        table_frame.columnconfigure(0, weight=1)
+        table_frame.rowconfigure(0, weight=1)
+
+        columns = ("number", "type", "file_name", "related_item", "description", "source_path")
+        self.attachments_tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=14)
+
+        headings = {
+            "number": "Attachment #",
+            "type": "Type",
+            "file_name": "File Name",
+            "related_item": "Related Item",
+            "description": "Description",
+            "source_path": "Source Path",
+        }
+
+        widths = {
+            "number": 110,
+            "type": 160,
+            "file_name": 220,
+            "related_item": 140,
+            "description": 300,
+            "source_path": 420,
+        }
+
+        for column in columns:
+            self.attachments_tree.heading(column, text=headings[column])
+            self.attachments_tree.column(column, width=widths[column], anchor="w")
+
+        self.attachments_tree.grid(row=0, column=0, sticky="nsew")
+
+        y_scroll = ttk.Scrollbar(table_frame, orient="vertical", command=self.attachments_tree.yview)
+        y_scroll.grid(row=0, column=1, sticky="ns")
+        self.attachments_tree.configure(yscrollcommand=y_scroll.set)
+        self.attachments_tree.bind("<Double-1>", lambda event: self.edit_selected_attachment())
+
+        button_frame = ttk.Frame(frame, padding=(0, 10, 0, 0))
+        button_frame.grid(row=1, column=0, sticky="ew")
+        button_frame.columnconfigure(0, weight=1)
+
+        self.attachment_count_var = tk.StringVar(value="Attachments: 0")
+        ttk.Label(button_frame, textvariable=self.attachment_count_var, style="Muted.TLabel").grid(row=0, column=0, sticky="w")
+
+        ttk.Button(button_frame, text="Add Attachment", command=self.add_attachment).grid(row=0, column=1, padx=4)
+        ttk.Button(button_frame, text="Edit Selected", command=self.edit_selected_attachment).grid(row=0, column=2, padx=4)
+        ttk.Button(button_frame, text="Remove Selected", command=self.remove_selected_attachment).grid(row=0, column=3, padx=4)
+
+        helper = (
+            "Add supporting documents such as warrants, consent forms, scope memos, screenshots, "
+            "prior reports, or notes. On export, listed files are copied into the request packet's "
+            "attachments folder when possible."
         )
         ttk.Label(frame, text=helper, style="Muted.TLabel", wraplength=1100).grid(row=2, column=0, sticky="w", pady=(10, 0))
 
@@ -573,6 +665,76 @@ class DigitalForensicsRequestApp:
             )
         self.item_count_var.set(f"Evidence items: {len(self.evidence_items)}")
 
+    def add_attachment(self):
+        AttachmentWindow(self, title="Add Attachment")
+
+    def edit_selected_attachment(self):
+        selected = self.attachments_tree.selection()
+        if not selected:
+            messagebox.showinfo("Edit Attachment", "Select an attachment to edit.")
+            return
+
+        index = int(selected[0])
+        AttachmentWindow(
+            self,
+            title="Edit Attachment",
+            attachment=self.attachments[index].copy(),
+            index=index,
+        )
+
+    def remove_selected_attachment(self):
+        selected = self.attachments_tree.selection()
+        if not selected:
+            messagebox.showinfo("Remove Attachment", "Select an attachment to remove.")
+            return
+
+        index = int(selected[0])
+        confirm = messagebox.askyesno("Remove Attachment", "Remove the selected attachment?")
+        if not confirm:
+            return
+
+        self.attachments.pop(index)
+        self.refresh_attachments_table()
+
+    def save_attachment(self, attachment, index=None):
+        if index is None:
+            if not attachment.get("attachment_number", "").strip():
+                attachment["attachment_number"] = str(len(self.attachments) + 1).zfill(3)
+
+            if not attachment.get("file_name", "").strip() and attachment.get("source_path", "").strip():
+                attachment["file_name"] = os.path.basename(attachment["source_path"].strip())
+
+            self.attachments.append(attachment)
+        else:
+            if not attachment.get("file_name", "").strip() and attachment.get("source_path", "").strip():
+                attachment["file_name"] = os.path.basename(attachment["source_path"].strip())
+
+            self.attachments[index] = attachment
+
+        self.refresh_attachments_table()
+        self.status_var.set(f"Attachments: {len(self.attachments)}")
+
+    def refresh_attachments_table(self):
+        for row in self.attachments_tree.get_children():
+            self.attachments_tree.delete(row)
+
+        for index, attachment in enumerate(self.attachments):
+            self.attachments_tree.insert(
+                "",
+                "end",
+                iid=str(index),
+                values=(
+                    attachment.get("attachment_number", ""),
+                    attachment.get("attachment_type", ""),
+                    attachment.get("file_name", ""),
+                    attachment.get("related_item", ""),
+                    attachment.get("description", ""),
+                    attachment.get("source_path", ""),
+                ),
+            )
+
+        self.attachment_count_var.set(f"Attachments: {len(self.attachments)}")
+
     def get_actions(self):
         return [action for action, variable in self.action_vars.items() if variable.get()]
 
@@ -626,6 +788,7 @@ class DigitalForensicsRequestApp:
                 "scope_notes": self.scope_notes_text.get("1.0", "end").strip(),
             },
             self.evidence_items,
+            self.attachments,
             {
                 "requested_actions": self.get_actions(),
                 "investigative_objective": self.investigative_objective_text.get("1.0", "end").strip(),
@@ -671,6 +834,7 @@ class DigitalForensicsRequestApp:
             f"Submitting Investigator: {investigator.get('submitting_investigator', '')}",
             f"Legal Authority: {authority.get('authority_type', '')}",
             f"Evidence Items: {len(packet.get('evidence_items', []))}",
+            f"Attachments: {len(packet.get('attachments', []))}",
             f"Requested Actions: {', '.join(details.get('requested_actions', [])) or 'None selected'}",
             f"Scope Options: {', '.join(scope.get('scope_options', [])) or 'None selected'}",
             f"Priority: {priority.get('priority', '')}",
@@ -685,21 +849,23 @@ class DigitalForensicsRequestApp:
 
         lines.extend([
             "This review has not written output files yet.",
-            "Click Confirm Export to create TXT, DOCX, and JSON outputs.",
+            "Click Confirm Export to create a request folder with TXT, DOCX, JSON, and copied attachments.",
         ])
         return "\n".join(lines)
 
     def export_request(self, packet, window):
         try:
-            txt_path, docx_path, json_path = save_request_outputs(packet, self.settings)
+            txt_path, docx_path, json_path, request_folder, copied_count = save_request_outputs(packet, self.settings)
             window.destroy()
             self.status_var.set("Request exported successfully.")
             messagebox.showinfo(
                 "Request Exported",
                 "Digital forensics request exported successfully.\n\n"
+                f"Request Folder:\n{request_folder}\n\n"
                 f"TXT:\n{txt_path}\n\n"
                 f"DOCX:\n{docx_path}\n\n"
-                f"JSON:\n{json_path}",
+                f"JSON:\n{json_path}\n\n"
+                f"Attachments copied: {copied_count}",
             )
         except Exception as exc:
             messagebox.showerror("Export Error", f"The request could not be exported.\n\nDetails:\n{exc}")
@@ -754,7 +920,9 @@ class DigitalForensicsRequestApp:
         self.keyword_limited_var.set(False)
 
         self.evidence_items = []
+        self.attachments = []
         self.refresh_items_table()
+        self.refresh_attachments_table()
         self.load_defaults_from_settings()
         self.status_var.set("Form cleared.")
 
@@ -781,6 +949,113 @@ class DigitalForensicsRequestApp:
         ]:
             self.style_text(widget)
 
+class AttachmentWindow:
+    def __init__(self, app, title, attachment=None, index=None):
+        self.app = app
+        self.index = index
+        self.attachment = attachment or blank_attachment()
+
+        self.window = tk.Toplevel(app.root)
+        self.window.title(title)
+        self.window.geometry("860x620")
+        self.window.transient(app.root)
+        self.window.grab_set()
+        self.window.configure(bg=app.colors["bg"])
+
+        self.vars = {}
+        self.build()
+        self.load_attachment()
+
+    def build(self):
+        frame = ttk.Frame(self.window, padding=10)
+        frame.pack(fill="both", expand=True)
+        frame.columnconfigure(1, weight=1)
+        frame.columnconfigure(3, weight=1)
+
+        fields = [
+            ("attachment_number", "Attachment Number", 0, 0),
+            ("attachment_type", "Attachment Type", 0, 2),
+            ("source_path", "Source File Path", 1, 0),
+            ("file_name", "File Name", 2, 0),
+            ("related_item", "Related Evidence Item", 2, 2),
+            ("document_date", "Document Date", 3, 0),
+            ("provided_by", "Provided By", 3, 2),
+            ("description", "Short Description", 4, 0),
+        ]
+
+        for key, label, row, column in fields:
+            self.vars[key] = tk.StringVar()
+            ttk.Label(frame, text=label).grid(row=row, column=column, sticky="w", pady=5)
+
+            if key == "attachment_type":
+                ttk.Combobox(
+                    frame,
+                    textvariable=self.vars[key],
+                    values=ATTACHMENT_TYPES,
+                    state="readonly",
+                ).grid(row=row, column=column + 1, sticky="ew", pady=5)
+            else:
+                ttk.Entry(frame, textvariable=self.vars[key]).grid(row=row, column=column + 1, sticky="ew", pady=5)
+
+        ttk.Button(frame, text="Browse", command=self.browse_source_file).grid(row=1, column=4, padx=4, pady=5)
+
+        ttk.Label(frame, text="Notes").grid(row=5, column=0, sticky="nw", pady=5)
+        self.notes_text = tk.Text(frame, height=10, width=80)
+        self.notes_text.grid(row=5, column=1, columnspan=3, sticky="nsew", pady=5)
+        self.app.style_text(self.notes_text)
+
+        helper = (
+            "Attachments are copied into the exported request folder when possible. "
+            "The original source files are not modified."
+        )
+        ttk.Label(frame, text=helper, style="Muted.TLabel", wraplength=780).grid(
+            row=6,
+            column=0,
+            columnspan=4,
+            sticky="w",
+            pady=(8, 0),
+        )
+
+        button_frame = ttk.Frame(self.window, padding=10)
+        button_frame.pack(fill="x")
+        ttk.Button(button_frame, text="Save Attachment", command=self.save).pack(side="right", padx=4)
+        ttk.Button(button_frame, text="Cancel", command=self.window.destroy).pack(side="right", padx=4)
+
+    def browse_source_file(self):
+        path = filedialog.askopenfilename(
+            title="Select Supporting Document",
+            filetypes=[
+                ("All Files", "*.*"),
+                ("PDF Files", "*.pdf"),
+                ("Word Documents", "*.docx *.doc"),
+                ("Image Files", "*.png *.jpg *.jpeg"),
+                ("Text Files", "*.txt"),
+            ],
+        )
+
+        if not path:
+            return
+
+        self.vars["source_path"].set(path)
+
+        if not self.vars["file_name"].get().strip():
+            self.vars["file_name"].set(os.path.basename(path))
+
+    def load_attachment(self):
+        for key, variable in self.vars.items():
+            variable.set(self.attachment.get(key, ""))
+
+        self.notes_text.insert("1.0", self.attachment.get("notes", ""))
+
+    def save(self):
+        attachment = {key: variable.get().strip() for key, variable in self.vars.items()}
+        attachment["notes"] = self.notes_text.get("1.0", "end").strip()
+
+        if not attachment.get("file_name") and attachment.get("source_path"):
+            attachment["file_name"] = os.path.basename(attachment["source_path"])
+
+        self.app.save_attachment(attachment, self.index)
+        self.window.destroy()
 
 class ItemWindow:
     def __init__(self, app, title, item=None, index=None):
