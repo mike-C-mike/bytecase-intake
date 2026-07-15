@@ -7,7 +7,7 @@ from bytecase_theme import normalize_theme_preference
 
 APP_NAME = "ByteCase Intake"
 APP_SUBTITLE = "Digital Forensics Request Builder"
-APP_VERSION = "0.9.0"
+APP_VERSION = "0.9.1"
 
 SUITE_NAME = "ByteCase"
 PUBLISHER_NAME = "Forensics Byte"

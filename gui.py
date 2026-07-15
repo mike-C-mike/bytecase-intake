@@ -419,6 +419,52 @@ class DigitalForensicsRequestApp:
     def configure_child_window(self, window):
         configure_toplevel(window, self.colors)
 
+    def create_scrollable_tab(self, notebook, tab_text):
+        outer = ttk.Frame(notebook)
+        notebook.add(outer, text=tab_text)
+        outer.columnconfigure(0, weight=1)
+        outer.rowconfigure(0, weight=1)
+
+        canvas = tk.Canvas(
+            outer,
+            background=self.colors["app_background"],
+            highlightthickness=0,
+            borderwidth=0,
+        )
+        vertical_scroll = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
+        horizontal_scroll = ttk.Scrollbar(outer, orient="horizontal", command=canvas.xview)
+        canvas.configure(yscrollcommand=vertical_scroll.set, xscrollcommand=horizontal_scroll.set)
+
+        canvas.grid(row=0, column=0, sticky="nsew")
+        vertical_scroll.grid(row=0, column=1, sticky="ns")
+        horizontal_scroll.grid(row=1, column=0, sticky="ew")
+
+        frame = ttk.Frame(canvas, padding=10)
+        window_id = canvas.create_window((0, 0), window=frame, anchor="nw")
+
+        def update_scroll_region(_event=None):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        def update_canvas_width(event):
+            # Keep the tab content as wide as the visible canvas while still allowing
+            # horizontal scrolling if a table or control needs more space.
+            requested_width = frame.winfo_reqwidth()
+            canvas.itemconfigure(window_id, width=max(event.width, requested_width))
+
+        def on_mousewheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        def on_shift_mousewheel(event):
+            canvas.xview_scroll(int(-1 * (event.delta / 120)), "units")
+
+        frame.bind("<Configure>", update_scroll_region)
+        canvas.bind("<Configure>", update_canvas_width)
+        canvas.bind("<Enter>", lambda _event: canvas.bind_all("<MouseWheel>", on_mousewheel))
+        canvas.bind("<Leave>", lambda _event: canvas.unbind_all("<MouseWheel>"))
+        canvas.bind("<Shift-MouseWheel>", on_shift_mousewheel)
+
+        return frame
+
     def build_gui(self):
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(1, weight=1)
@@ -466,8 +512,7 @@ class DigitalForensicsRequestApp:
         ttk.Entry(parent, textvariable=variable).grid(row=row, column=column + 1, sticky="ew", pady=5)
 
     def build_case_tab(self, notebook):
-        frame = ttk.Frame(notebook, padding=10)
-        notebook.add(frame, text="Case / Investigator")
+        frame = self.create_scrollable_tab(notebook, "Case / Investigator")
         frame.columnconfigure(1, weight=1)
         frame.columnconfigure(3, weight=1)
 
@@ -511,8 +556,7 @@ class DigitalForensicsRequestApp:
         self.entry(investigator_frame, "Supervisor", self.supervisor_var, 2, 2)
 
     def build_items_tab(self, notebook):
-        frame = ttk.Frame(notebook, padding=10)
-        notebook.add(frame, text="Evidence Items")
+        frame = self.create_scrollable_tab(notebook, "Evidence Items")
         frame.columnconfigure(0, weight=1)
         frame.rowconfigure(0, weight=1)
 
@@ -570,8 +614,7 @@ class DigitalForensicsRequestApp:
         ttk.Label(frame, text=helper, style="Muted.TLabel", wraplength=1100).grid(row=2, column=0, sticky="w", pady=(10, 0))
 
     def build_attachments_tab(self, notebook):
-        frame = ttk.Frame(notebook, padding=10)
-        notebook.add(frame, text="Attachments")
+        frame = self.create_scrollable_tab(notebook, "Attachments")
         frame.columnconfigure(0, weight=1)
         frame.rowconfigure(0, weight=1)
 
@@ -631,8 +674,7 @@ class DigitalForensicsRequestApp:
         ttk.Label(frame, text=helper, style="Muted.TLabel", wraplength=1100).grid(row=2, column=0, sticky="w", pady=(10, 0))
 
     def build_request_tab(self, notebook):
-        frame = ttk.Frame(notebook, padding=10)
-        notebook.add(frame, text="Request / Scope")
+        frame = self.create_scrollable_tab(notebook, "Request / Scope")
         frame.columnconfigure(0, weight=1)
         frame.columnconfigure(1, weight=1)
         frame.rowconfigure(2, weight=1)
@@ -737,8 +779,7 @@ class DigitalForensicsRequestApp:
         return text
 
     def build_priority_tab(self, notebook):
-        frame = ttk.Frame(notebook, padding=10)
-        notebook.add(frame, text="Priority / Handoff")
+        frame = self.create_scrollable_tab(notebook, "Priority / Handoff")
         frame.columnconfigure(0, weight=1)
         frame.columnconfigure(1, weight=1)
         frame.rowconfigure(0, weight=1)
