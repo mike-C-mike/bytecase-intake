@@ -2,10 +2,12 @@ import json
 import sys
 from pathlib import Path
 
+from bytecase_theme import normalize_theme_preference
+
 
 APP_NAME = "ByteCase Intake"
 APP_SUBTITLE = "Digital Forensics Request Builder"
-APP_VERSION = "0.7.0"
+APP_VERSION = "0.8.1"
 
 SUITE_NAME = "ByteCase"
 PUBLISHER_NAME = "Forensics Byte"
@@ -40,7 +42,7 @@ DEFAULT_SETTINGS = {
     "default_investigator": "",
     "investigators": [],
     "appearance": {
-        "theme": "dark"
+        "theme": "system"
     },
     "output_paths": {
         "base_output_dir": "",
@@ -73,10 +75,7 @@ def normalize_settings(settings):
     if not isinstance(appearance, dict):
         appearance = {}
 
-    theme = str(appearance.get("theme", "dark")).strip().lower()
-
-    if theme not in ["dark", "light"]:
-        theme = "dark"
+    theme = normalize_theme_preference(appearance.get("theme", "system"))
 
     settings["appearance"] = {
         "theme": theme

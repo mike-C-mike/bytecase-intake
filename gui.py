@@ -2,6 +2,14 @@ import os
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
+from bytecase_theme import (
+    THEME_DISPLAY_NAMES,
+    apply_theme as apply_bytecase_theme,
+    configure_toplevel,
+    display_theme_preference,
+    style_text_widget,
+    theme_preference_from_display,
+)
 from request_core import build_request_packet, save_request_outputs
 from settings_service import (
     APP_NAME,
@@ -107,6 +115,82 @@ ATTACHMENT_TYPES = [
 ]
 
 
+PHYSICAL_ITEM_TYPES = {
+    "Mobile Phone",
+    "Tablet",
+    "Computer / Laptop",
+    "External Hard Drive / SSD",
+    "External Hard Drive",
+    "USB Drive",
+    "SD / Memory Card",
+    "DVR / NVR",
+    "Other Digital Media",
+}
+
+PHOTO_TYPES = [
+    "",
+    "Front",
+    "Back",
+    "Screen",
+    "Top",
+    "Bottom",
+    "Left Side",
+    "Right Side",
+    "Ports / Connectors",
+    "Serial / Identifier",
+    "Asset Tag / Label",
+    "Damage",
+    "Packaging / Seal",
+    "Accessories",
+    "Peripherals",
+    "Condition / Intake",
+    "Other",
+]
+
+PERIPHERAL_TYPES = [
+    "",
+    "Power Adapter / Charger",
+    "Cable",
+    "Keyboard",
+    "Mouse",
+    "Monitor",
+    "Docking Station",
+    "External Drive",
+    "USB Device",
+    "SD Card",
+    "SIM Card",
+    "Case / Cover",
+    "Bluetooth Device",
+    "Speaker",
+    "Headset",
+    "Other",
+]
+
+TRANSFER_METHOD_OPTIONS = [
+    "",
+    "Hand-delivered",
+    "Evidence room transfer",
+    "Interoffice transfer",
+    "Secure file transfer",
+    "Email / digital submission",
+    "Cloud / portal upload",
+    "External media",
+    "Other",
+]
+
+CONDITION_AT_SUBMISSION_OPTIONS = [
+    "",
+    "Sealed",
+    "Unsealed",
+    "Powered off",
+    "Powered on",
+    "Damaged",
+    "Wet / contaminated",
+    "Unknown",
+    "Other",
+]
+
+
 def blank_attachment():
     return {
         "attachment_number": "",
@@ -129,6 +213,8 @@ def blank_item():
         "condition_received": "",
         "packaging_seal_info": "",
         "type_specific": {},
+        "item_photos": [],
+        "peripherals": [],
         "item_notes": "",
     }
 
@@ -269,6 +355,12 @@ def normalize_item_for_gui(item):
 
     normalized["type_specific"] = {key: str(value or "") for key, value in type_specific.items()}
 
+    item_photos = item.get("item_photos", [])
+    normalized["item_photos"] = item_photos if isinstance(item_photos, list) else []
+
+    peripherals = item.get("peripherals", [])
+    normalized["peripherals"] = peripherals if isinstance(peripherals, list) else []
+
     legacy_fields = [
         "make_model", "serial_number", "imei_meid", "phone_number", "storage_capacity",
         "power_lock_state", "passcode_provided", "known_account_info",
@@ -318,108 +410,14 @@ class DigitalForensicsRequestApp:
         self.load_defaults_from_settings()
 
     def apply_theme(self):
-        theme = self.settings.get("appearance", {}).get("theme", "dark")
-        style = ttk.Style()
-        try:
-            style.theme_use("clam")
-        except tk.TclError:
-            pass
-
-        if theme == "light":
-            colors = {
-                "bg": "#f5f5f5",
-                "text": "#111111",
-                "muted": "#444444",
-                "accent": "#b8860b",
-                "button": "#e6e6e6",
-                "field": "#ffffff",
-                "field_text": "#111111",
-                "tree_bg": "#ffffff",
-                "heading_bg": "#e8e8e8",
-                "border": "#c0c0c0",
-            }
-        else:
-            colors = {
-                "bg": "#111111",
-                "text": "#f2f2f2",
-                "muted": "#c0c0c0",
-                "accent": "#d4af37",
-                "button": "#2a2a2a",
-                "field": "#202020",
-                "field_text": "#f2f2f2",
-                "tree_bg": "#161616",
-                "heading_bg": "#2a2a2a",
-                "border": "#3a3a3a",
-            }
-
-        self.colors = colors
-        self.root.configure(bg=colors["bg"])
-
-        style.configure(
-            ".",
-            background=colors["bg"],
-            foreground=colors["text"],
-            fieldbackground=colors["field"],
-            font=("Segoe UI", 10),
-        )
-        for style_name in ["TFrame", "TLabel", "TLabelframe", "TCheckbutton", "TNotebook"]:
-            style.configure(style_name, background=colors["bg"], foreground=colors["text"])
-
-        style.configure(
-            "Title.TLabel",
-            background=colors["bg"],
-            foreground=colors["accent"],
-            font=("Segoe UI", 16, "bold"),
-        )
-        style.configure("Muted.TLabel", background=colors["bg"], foreground=colors["muted"])
-        style.configure(
-            "TLabelframe.Label",
-            background=colors["bg"],
-            foreground=colors["accent"],
-            font=("Segoe UI", 10, "bold"),
-        )
-        style.configure("TButton", background=colors["button"], foreground=colors["text"], padding=6)
-        style.map(
-            "TButton",
-            background=[("active", colors["accent"])],
-            foreground=[("active", "#111111")],
-        )
-        style.configure("TCheckbutton", background=colors["bg"], foreground=colors["text"])
-        style.map("TCheckbutton", background=[("active", colors["bg"])], foreground=[("active", colors["accent"])])
-        style.configure(
-            "TEntry",
-            fieldbackground=colors["field"],
-            foreground=colors["field_text"],
-            insertcolor=colors["accent"],
-        )
-        style.configure(
-            "TCombobox",
-            fieldbackground=colors["field"],
-            background=colors["button"],
-            foreground=colors["field_text"],
-            arrowcolor=colors["accent"],
-        )
-        style.map("TCombobox", fieldbackground=[("readonly", colors["field"])], foreground=[("readonly", colors["field_text"])])
-        style.configure("TNotebook.Tab", background=colors["button"], foreground=colors["text"], padding=(10, 5))
-        style.map(
-            "TNotebook.Tab",
-            background=[("selected", colors["accent"])],
-            foreground=[("selected", "#111111")],
-        )
-        style.configure("Treeview", background=colors["tree_bg"], fieldbackground=colors["tree_bg"], foreground=colors["text"], rowheight=24)
-        style.configure("Treeview.Heading", background=colors["heading_bg"], foreground=colors["accent"], font=("Segoe UI", 10, "bold"))
-        style.map("Treeview", background=[("selected", colors["accent"])], foreground=[("selected", "#111111")])
+        self.theme_state = apply_bytecase_theme(self.root, self.settings)
+        self.colors = self.theme_state["colors"]
 
     def style_text(self, widget):
-        widget.configure(
-            background=self.colors["field"],
-            foreground=self.colors["field_text"],
-            insertbackground=self.colors["accent"],
-            selectbackground=self.colors["accent"],
-            selectforeground="#111111",
-            relief="solid",
-            borderwidth=1,
-        )
+        style_text_widget(widget, self.colors)
+
+    def configure_child_window(self, window):
+        configure_toplevel(window, self.colors)
 
     def build_gui(self):
         self.root.columnconfigure(0, weight=1)
@@ -460,7 +458,7 @@ class DigitalForensicsRequestApp:
 
         self.status_var = tk.StringVar(value="Ready.")
         ttk.Label(bottom, textvariable=self.status_var, style="Muted.TLabel").grid(row=0, column=0, sticky="w")
-        ttk.Button(bottom, text="Review Request", command=self.review_request).grid(row=0, column=1, padx=4)
+        ttk.Button(bottom, text="Review Request", command=self.review_request, style="Primary.TButton").grid(row=0, column=1, padx=4)
         ttk.Button(bottom, text="Clear Form", command=self.clear_form).grid(row=0, column=2, padx=4)
 
     def entry(self, parent, label, variable, row, column=0):
@@ -523,7 +521,7 @@ class DigitalForensicsRequestApp:
         table_frame.columnconfigure(0, weight=1)
         table_frame.rowconfigure(0, weight=1)
 
-        columns = ("item_number", "evidence_number", "type", "description", "details", "condition")
+        columns = ("item_number", "evidence_number", "type", "description", "details", "photos", "peripherals", "condition")
         self.items_tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=14)
         headings = {
             "item_number": "Item #",
@@ -531,6 +529,8 @@ class DigitalForensicsRequestApp:
             "type": "Type",
             "description": "Short Description",
             "details": "Key Details",
+            "photos": "Photos",
+            "peripherals": "Peripherals",
             "condition": "Condition",
         }
         widths = {
@@ -538,8 +538,10 @@ class DigitalForensicsRequestApp:
             "evidence_number": 130,
             "type": 170,
             "description": 260,
-            "details": 300,
-            "condition": 180,
+            "details": 260,
+            "photos": 80,
+            "peripherals": 90,
+            "condition": 160,
         }
         for column in columns:
             self.items_tree.heading(column, text=headings[column])
@@ -739,6 +741,7 @@ class DigitalForensicsRequestApp:
         notebook.add(frame, text="Priority / Handoff")
         frame.columnconfigure(0, weight=1)
         frame.columnconfigure(1, weight=1)
+        frame.rowconfigure(0, weight=1)
 
         priority_frame = ttk.LabelFrame(frame, text="Priority / Urgency", padding=10)
         priority_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
@@ -770,26 +773,72 @@ class DigitalForensicsRequestApp:
         self.priority_notes_text.grid(row=20, column=1, sticky="nsew", pady=5)
         self.style_text(self.priority_notes_text)
 
-        handoff_frame = ttk.LabelFrame(frame, text="Submission / Handoff", padding=10)
+        handoff_frame = ttk.LabelFrame(frame, text="Submission / Handoff Receipt", padding=10)
         handoff_frame.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
         handoff_frame.columnconfigure(1, weight=1)
+        handoff_frame.columnconfigure(3, weight=1)
 
+        self.submitted_by_var = tk.StringVar()
+        self.submitted_by_title_unit_var = tk.StringVar()
+        self.submitted_date_time_var = tk.StringVar()
+        self.submitted_to_var = tk.StringVar()
+        self.receiving_unit_lab_var = tk.StringVar()
         self.transfer_method_var = tk.StringVar()
         self.packaging_seal_info_var = tk.StringVar()
+        self.condition_at_submission_var = tk.StringVar()
+        self.received_by_var = tk.StringVar()
+        self.received_date_time_var = tk.StringVar()
         self.include_acknowledgement_block_var = tk.BooleanVar(value=True)
 
-        self.entry(handoff_frame, "Transfer Method", self.transfer_method_var, 0, 0)
-        self.entry(handoff_frame, "Packaging / Seal Information", self.packaging_seal_info_var, 1, 0)
+        self.entry(handoff_frame, "Submitted By", self.submitted_by_var, 0, 0)
+        self.entry(handoff_frame, "Title / Unit", self.submitted_by_title_unit_var, 0, 2)
+        self.entry(handoff_frame, "Submitted Date / Time", self.submitted_date_time_var, 1, 0)
+        self.entry(handoff_frame, "Submitted To", self.submitted_to_var, 1, 2)
+        self.entry(handoff_frame, "Receiving Unit / Lab", self.receiving_unit_lab_var, 2, 0)
+
+        ttk.Label(handoff_frame, text="Transfer Method").grid(row=2, column=2, sticky="w", pady=5)
+        ttk.Combobox(
+            handoff_frame,
+            textvariable=self.transfer_method_var,
+            values=TRANSFER_METHOD_OPTIONS,
+            state="readonly",
+        ).grid(row=2, column=3, sticky="ew", pady=5)
+
+        self.entry(handoff_frame, "Packaging / Seal Information", self.packaging_seal_info_var, 3, 0)
+
+        ttk.Label(handoff_frame, text="Condition at Submission").grid(row=3, column=2, sticky="w", pady=5)
+        ttk.Combobox(
+            handoff_frame,
+            textvariable=self.condition_at_submission_var,
+            values=CONDITION_AT_SUBMISSION_OPTIONS,
+            state="readonly",
+        ).grid(row=3, column=3, sticky="ew", pady=5)
+
+        self.entry(handoff_frame, "Received By", self.received_by_var, 4, 0)
+        self.entry(handoff_frame, "Received Date / Time", self.received_date_time_var, 4, 2)
+
         ttk.Checkbutton(
             handoff_frame,
             text="Include submission acknowledgement block",
             variable=self.include_acknowledgement_block_var,
-        ).grid(row=2, column=0, columnspan=2, sticky="w", pady=8)
+        ).grid(row=5, column=0, columnspan=4, sticky="w", pady=8)
 
-        ttk.Label(handoff_frame, text="Handoff Notes").grid(row=3, column=0, sticky="nw", pady=5)
-        self.handoff_notes_text = tk.Text(handoff_frame, height=10, width=50)
-        self.handoff_notes_text.grid(row=3, column=1, sticky="nsew", pady=5)
+        ttk.Label(handoff_frame, text="Receiving / Handoff Notes").grid(row=6, column=0, sticky="nw", pady=5)
+        self.handoff_notes_text = tk.Text(handoff_frame, height=8, width=60)
+        self.handoff_notes_text.grid(row=6, column=1, columnspan=3, sticky="nsew", pady=5)
         self.style_text(self.handoff_notes_text)
+
+        helper = (
+            "This section documents intake/submission details only. It does not replace the agency's official "
+            "evidence management system, chain-of-custody record, property record, legal review, or forensic report."
+        )
+        ttk.Label(handoff_frame, text=helper, style="Muted.TLabel", wraplength=680).grid(
+            row=7,
+            column=0,
+            columnspan=4,
+            sticky="w",
+            pady=(8, 0),
+        )
 
     def add_item(self):
         ItemWindow(self, title="Add Evidence Item")
@@ -840,6 +889,8 @@ class DigitalForensicsRequestApp:
                     item.get("device_or_media_type", ""),
                     item.get("short_description", ""),
                     summarize_item_details(item),
+                    len(item.get("item_photos", [])),
+                    len(item.get("peripherals", [])),
                     item.get("condition_received", ""),
                 ),
             )
@@ -982,9 +1033,17 @@ class DigitalForensicsRequestApp:
                 "priority_notes": self.priority_notes_text.get("1.0", "end").strip(),
             },
             {
+                "submitted_by": self.submitted_by_var.get(),
+                "submitted_by_title_unit": self.submitted_by_title_unit_var.get(),
+                "submitted_date_time": self.submitted_date_time_var.get(),
+                "submitted_to": self.submitted_to_var.get(),
+                "receiving_unit_lab": self.receiving_unit_lab_var.get(),
                 "transfer_method": self.transfer_method_var.get(),
                 "packaging_seal_info": self.packaging_seal_info_var.get(),
-                "handoff_notes": self.handoff_notes_text.get("1.0", "end").strip(),
+                "condition_at_submission": self.condition_at_submission_var.get(),
+                "received_by": self.received_by_var.get(),
+                "received_date_time": self.received_date_time_var.get(),
+                "receiving_notes": self.handoff_notes_text.get("1.0", "end").strip(),
             },
             self.include_acknowledgement_block_var.get(),
         )
@@ -1005,6 +1064,10 @@ class DigitalForensicsRequestApp:
         details = packet.get("request_details", {})
         priority = packet.get("priority_info", {})
         options = packet.get("report_options", {})
+        handoff = packet.get("handoff_info", {})
+
+        photo_count = sum(len(item.get("item_photos", []) or []) for item in packet.get("evidence_items", []))
+        peripheral_count = sum(len(item.get("peripherals", []) or []) for item in packet.get("evidence_items", []))
 
         lines = [
             "BYTECASE INTAKE REQUEST REVIEW",
@@ -1016,6 +1079,10 @@ class DigitalForensicsRequestApp:
             f"Legal Authority: {authority.get('authority_type', '')}",
             f"Evidence Items: {len(packet.get('evidence_items', []))}",
             f"Attachments: {len(packet.get('attachments', []))}",
+            f"Item Photos: {photo_count}",
+            f"Peripherals / Accessories: {peripheral_count}",
+            f"Transfer Method: {handoff.get('transfer_method', '')}",
+            f"Condition at Submission: {handoff.get('condition_at_submission', '')}",
             f"Requested Actions: {', '.join(details.get('requested_actions', [])) or 'None selected'}",
             f"Scope Options: {', '.join(scope.get('scope_options', [])) or 'None selected'}",
             f"Priority: {priority.get('priority', '')}",
@@ -1030,13 +1097,13 @@ class DigitalForensicsRequestApp:
 
         lines.extend([
             "This review has not written output files yet.",
-            "Click Confirm Export to create a request folder with TXT, DOCX, JSON, and copied attachments.",
+            "Click Confirm Export to create a request folder with TXT, DOCX, JSON, copied attachments, and item photo folders.",
         ])
         return "\n".join(lines)
 
     def export_request(self, packet, window):
         try:
-            txt_path, docx_path, json_path, request_folder, copied_count = save_request_outputs(packet, self.settings)
+            txt_path, docx_path, json_path, request_folder, copied_count, copied_photo_count = save_request_outputs(packet, self.settings)
             window.destroy()
             self.status_var.set("Request exported successfully.")
             messagebox.showinfo(
@@ -1046,7 +1113,8 @@ class DigitalForensicsRequestApp:
                 f"TXT:\n{txt_path}\n\n"
                 f"DOCX:\n{docx_path}\n\n"
                 f"JSON:\n{json_path}\n\n"
-                f"Attachments copied: {copied_count}",
+                f"Attachments copied: {copied_count}\n"
+                f"Item photos copied: {copied_photo_count}",
             )
         except Exception as exc:
             messagebox.showerror("Export Error", f"The request could not be exported.\n\nDetails:\n{exc}")
@@ -1072,8 +1140,16 @@ class DigitalForensicsRequestApp:
             self.authorized_keywords_var,
             self.priority_var,
             self.requested_due_date_var,
+            self.submitted_by_var,
+            self.submitted_by_title_unit_var,
+            self.submitted_date_time_var,
+            self.submitted_to_var,
+            self.receiving_unit_lab_var,
             self.transfer_method_var,
             self.packaging_seal_info_var,
+            self.condition_at_submission_var,
+            self.received_by_var,
+            self.received_date_time_var,
         ]
         for variable in string_vars:
             variable.set("")
@@ -1150,7 +1226,7 @@ class AboutWindow:
         self.window.geometry("840x660")
         self.window.transient(app.root)
         self.window.grab_set()
-        self.window.configure(bg=app.colors["bg"])
+        self.window.configure(bg=app.colors["app_background"])
 
         self.build()
 
@@ -1185,6 +1261,7 @@ The tool is designed to help capture:
 - Investigative objective and known facts
 - Supporting documents and attachment indexes
 - Submission and handoff information
+- Physical item intake photos and peripherals/accessories
 
 PLATFORM IDEOLOGY
 
@@ -1200,7 +1277,7 @@ WHAT THIS TOOL DOES NOT DO
 
 ByteCase Intake does not perform forensic acquisition, extraction, hashing, parsing, artifact analysis, legal review, or investigative conclusions.
 
-It creates a request packet based on information provided by the investigator or submitting party.
+It creates a request packet based on information provided by the investigator or submitting party. Item photos are intake reference images only and do not replace official evidence photographs, chain-of-custody documentation, or examiner documentation.
 
 Legal authority, scope, and agency policy should be reviewed under the user's agency procedures and applicable law before forensic work begins.
 
@@ -1217,7 +1294,10 @@ Current tool folder:
 Typical structure:
 {DEFAULT_ROOT_FOLDER_NAME}/<case_number>/{TOOL_FOLDER_NAME}/
 
-Generated outputs and copied supporting documents are kept together so the request packet can travel with related warrants, consent forms, scope memos, notes, screenshots, and other supporting documents.
+Item folders use this structure:
+{DEFAULT_ROOT_FOLDER_NAME}/<case_number>/{TOOL_FOLDER_NAME}/items/item_001_mobile_phone/photos/
+
+Generated outputs, copied supporting documents, item-level photo folders, and related indexes are kept together so the request packet can travel with related warrants, consent forms, scope memos, notes, screenshots, and other supporting documents.
 
 ATTRIBUTION
 
@@ -1248,7 +1328,7 @@ class AttachmentWindow:
         self.window.geometry("860x620")
         self.window.transient(app.root)
         self.window.grab_set()
-        self.window.configure(bg=app.colors["bg"])
+        self.window.configure(bg=app.colors["app_background"])
 
         self.vars = {}
         self.build()
@@ -1306,7 +1386,7 @@ class AttachmentWindow:
 
         button_frame = ttk.Frame(self.window, padding=10)
         button_frame.pack(fill="x")
-        ttk.Button(button_frame, text="Save Attachment", command=self.save).pack(side="right", padx=4)
+        ttk.Button(button_frame, text="Save Attachment", command=self.save, style="Primary.TButton").pack(side="right", padx=4)
         ttk.Button(button_frame, text="Cancel", command=self.window.destroy).pack(side="right", padx=4)
 
     def browse_source_file(self):
@@ -1350,32 +1430,62 @@ class ItemWindow:
         self.app = app
         self.index = index
         self.item = normalize_item_for_gui(item or blank_item())
-        self.type_specific_vars = {}
+        self.item_photos = [photo.copy() for photo in self.item.get("item_photos", [])]
+        self.peripherals = [peripheral.copy() for peripheral in self.item.get("peripherals", [])]
+        self.photo_tab_visible = False
+        self.peripheral_tab_visible = False
 
         self.window = tk.Toplevel(app.root)
         self.window.title(title)
-        self.window.geometry("900x720")
+        self.window.geometry("980x760")
         self.window.transient(app.root)
         self.window.grab_set()
-        self.window.configure(bg=app.colors["bg"])
-
+        self.window.configure(bg=app.colors["app_background"])
         self.vars = {}
+        self.type_specific_vars = {}
         self.build()
         self.load_item()
-        self.rebuild_type_specific_fields()
+        self.rebuild_type_fields()
+        self.refresh_photos_table()
+        self.refresh_peripherals_table()
 
     def build(self):
         outer = ttk.Frame(self.window, padding=10)
         outer.pack(fill="both", expand=True)
         outer.columnconfigure(0, weight=1)
-        outer.rowconfigure(1, weight=1)
+        outer.rowconfigure(0, weight=1)
 
-        common_frame = ttk.LabelFrame(outer, text="Common Item Fields", padding=10)
-        common_frame.grid(row=0, column=0, sticky="ew")
-        common_frame.columnconfigure(1, weight=1)
-        common_frame.columnconfigure(3, weight=1)
+        self.notebook = ttk.Notebook(outer)
+        self.notebook.grid(row=0, column=0, sticky="nsew")
 
-        common_fields = [
+        self.details_tab = ttk.Frame(self.notebook, padding=10)
+        self.photos_tab = ttk.Frame(self.notebook, padding=10)
+        self.peripherals_tab = ttk.Frame(self.notebook, padding=10)
+
+        self.notebook.add(self.details_tab, text="Item Details")
+
+        self.build_details_tab()
+        self.build_photos_tab()
+        self.build_peripherals_tab()
+
+        helper = (
+            "Photos and peripherals are available only for physical evidence item types. "
+            "Item photos are copied and indexed during export; they are not embedded into the DOCX report."
+        )
+        ttk.Label(outer, text=helper, style="Muted.TLabel", wraplength=920).grid(row=1, column=0, sticky="w", pady=(8, 0))
+
+        button_frame = ttk.Frame(self.window, padding=10)
+        button_frame.pack(fill="x")
+        ttk.Button(button_frame, text="Save Item", command=self.save, style="Primary.TButton").pack(side="right", padx=4)
+        ttk.Button(button_frame, text="Cancel", command=self.window.destroy).pack(side="right", padx=4)
+
+    def build_details_tab(self):
+        frame = self.details_tab
+        frame.columnconfigure(1, weight=1)
+        frame.columnconfigure(3, weight=1)
+        frame.rowconfigure(3, weight=1)
+
+        fields = [
             ("item_number", "Item Number", 0, 0),
             ("evidence_number", "Evidence Number", 0, 2),
             ("device_or_media_type", "Device / Media Type", 1, 0),
@@ -1384,49 +1494,135 @@ class ItemWindow:
             ("packaging_seal_info", "Packaging / Seal Information", 2, 2),
         ]
 
-        for key, label, row, column in common_fields:
+        for key, label, row, column in fields:
             self.vars[key] = tk.StringVar()
-            ttk.Label(common_frame, text=label).grid(row=row, column=column, sticky="w", pady=5)
-
+            ttk.Label(frame, text=label).grid(row=row, column=column, sticky="w", pady=5)
             if key == "device_or_media_type":
-                combo = ttk.Combobox(
-                    common_frame,
-                    textvariable=self.vars[key],
-                    values=DEVICE_MEDIA_TYPES,
-                    state="readonly",
-                )
+                combo = ttk.Combobox(frame, textvariable=self.vars[key], values=DEVICE_MEDIA_TYPES, state="readonly")
                 combo.grid(row=row, column=column + 1, sticky="ew", pady=5)
-                combo.bind("<<ComboboxSelected>>", lambda event: self.rebuild_type_specific_fields())
+                combo.bind("<<ComboboxSelected>>", lambda event: self.rebuild_type_fields())
             else:
-                ttk.Entry(common_frame, textvariable=self.vars[key]).grid(row=row, column=column + 1, sticky="ew", pady=5)
+                ttk.Entry(frame, textvariable=self.vars[key]).grid(row=row, column=column + 1, sticky="ew", pady=5)
 
-        self.type_frame = ttk.LabelFrame(outer, text="Type-Specific Details", padding=10)
-        self.type_frame.grid(row=1, column=0, sticky="nsew", pady=(10, 0))
+        self.type_frame = ttk.LabelFrame(frame, text="Type-Specific Details", padding=10)
+        self.type_frame.grid(row=3, column=0, columnspan=4, sticky="nsew", pady=(8, 4))
         self.type_frame.columnconfigure(1, weight=1)
         self.type_frame.columnconfigure(3, weight=1)
 
-        notes_frame = ttk.LabelFrame(outer, text="Item Notes", padding=10)
-        notes_frame.grid(row=2, column=0, sticky="nsew", pady=(10, 0))
-        notes_frame.columnconfigure(0, weight=1)
-
-        self.item_notes_text = tk.Text(notes_frame, height=7, width=90)
-        self.item_notes_text.grid(row=0, column=0, sticky="nsew")
+        ttk.Label(frame, text="Item Notes").grid(row=4, column=0, sticky="nw", pady=5)
+        self.item_notes_text = tk.Text(frame, height=8, width=80)
+        self.item_notes_text.grid(row=4, column=1, columnspan=3, sticky="nsew", pady=5)
         self.app.style_text(self.item_notes_text)
 
-        helper = (
-            "Common fields apply to every submitted item. Type-specific fields change based on the selected device/media type. "
-            "Only populated fields are included in TXT, DOCX, and JSON outputs."
-        )
-        ttk.Label(outer, text=helper, style="Muted.TLabel", wraplength=840).grid(row=3, column=0, sticky="w", pady=(8, 0))
+    def build_photos_tab(self):
+        frame = self.photos_tab
+        frame.columnconfigure(0, weight=1)
+        frame.rowconfigure(1, weight=1)
 
-        button_frame = ttk.Frame(self.window, padding=10)
-        button_frame.pack(fill="x")
-        ttk.Button(button_frame, text="Save Item", command=self.save).pack(side="right", padx=4)
-        ttk.Button(button_frame, text="Cancel", command=self.window.destroy).pack(side="right", padx=4)
+        entry_frame = ttk.LabelFrame(frame, text="Add Item Photo", padding=10)
+        entry_frame.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        entry_frame.columnconfigure(1, weight=1)
+        entry_frame.columnconfigure(3, weight=1)
 
-    def rebuild_type_specific_fields(self):
+        self.photo_type_var = tk.StringVar()
+        self.photo_description_var = tk.StringVar()
+
+        ttk.Label(entry_frame, text="Photo Type").grid(row=0, column=0, sticky="w", pady=5)
+        ttk.Combobox(entry_frame, textvariable=self.photo_type_var, values=PHOTO_TYPES, state="readonly").grid(row=0, column=1, sticky="ew", pady=5)
+        ttk.Label(entry_frame, text="Description").grid(row=0, column=2, sticky="w", pady=5, padx=(12, 0))
+        ttk.Entry(entry_frame, textvariable=self.photo_description_var).grid(row=0, column=3, sticky="ew", pady=5)
+        ttk.Button(entry_frame, text="Upload Photo", command=self.add_photo).grid(row=0, column=4, padx=6)
+
+        table_frame = ttk.LabelFrame(frame, text="Item Photo Index", padding=10)
+        table_frame.grid(row=1, column=0, sticky="nsew")
+        table_frame.columnconfigure(0, weight=1)
+        table_frame.rowconfigure(0, weight=1)
+
+        columns = ("number", "type", "description", "source_path")
+        self.photos_tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=10)
+        headings = {"number": "Photo #", "type": "Type", "description": "Description", "source_path": "Source Path"}
+        widths = {"number": 90, "type": 180, "description": 260, "source_path": 420}
+        for column in columns:
+            self.photos_tree.heading(column, text=headings[column])
+            self.photos_tree.column(column, width=widths[column], anchor="w")
+        self.photos_tree.grid(row=0, column=0, sticky="nsew")
+
+        y_scroll = ttk.Scrollbar(table_frame, orient="vertical", command=self.photos_tree.yview)
+        y_scroll.grid(row=0, column=1, sticky="ns")
+        self.photos_tree.configure(yscrollcommand=y_scroll.set)
+
+        buttons = ttk.Frame(frame, padding=(0, 8, 0, 0))
+        buttons.grid(row=2, column=0, sticky="ew")
+        buttons.columnconfigure(0, weight=1)
+        self.photo_count_var = tk.StringVar(value="Photos: 0")
+        ttk.Label(buttons, textvariable=self.photo_count_var, style="Muted.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Button(buttons, text="Remove Selected", command=self.remove_selected_photo).grid(row=0, column=1, padx=4)
+
+    def build_peripherals_tab(self):
+        frame = self.peripherals_tab
+        frame.columnconfigure(0, weight=1)
+        frame.rowconfigure(0, weight=1)
+
+        table_frame = ttk.LabelFrame(frame, text="Peripherals / Accessories", padding=10)
+        table_frame.grid(row=0, column=0, sticky="nsew")
+        table_frame.columnconfigure(0, weight=1)
+        table_frame.rowconfigure(0, weight=1)
+
+        columns = ("number", "type", "description", "serial", "condition")
+        self.peripherals_tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=12)
+        headings = {"number": "#", "type": "Type", "description": "Description", "serial": "Serial / Identifier", "condition": "Condition"}
+        widths = {"number": 70, "type": 180, "description": 300, "serial": 180, "condition": 160}
+        for column in columns:
+            self.peripherals_tree.heading(column, text=headings[column])
+            self.peripherals_tree.column(column, width=widths[column], anchor="w")
+        self.peripherals_tree.grid(row=0, column=0, sticky="nsew")
+        self.peripherals_tree.bind("<Double-1>", lambda event: self.edit_selected_peripheral())
+
+        y_scroll = ttk.Scrollbar(table_frame, orient="vertical", command=self.peripherals_tree.yview)
+        y_scroll.grid(row=0, column=1, sticky="ns")
+        self.peripherals_tree.configure(yscrollcommand=y_scroll.set)
+
+        buttons = ttk.Frame(frame, padding=(0, 8, 0, 0))
+        buttons.grid(row=1, column=0, sticky="ew")
+        buttons.columnconfigure(0, weight=1)
+        self.peripheral_count_var = tk.StringVar(value="Peripherals: 0")
+        ttk.Label(buttons, textvariable=self.peripheral_count_var, style="Muted.TLabel").grid(row=0, column=0, sticky="w")
+        ttk.Button(buttons, text="Add Peripheral", command=self.add_peripheral).grid(row=0, column=1, padx=4)
+        ttk.Button(buttons, text="Edit Selected", command=self.edit_selected_peripheral).grid(row=0, column=2, padx=4)
+        ttk.Button(buttons, text="Remove Selected", command=self.remove_selected_peripheral).grid(row=0, column=3, padx=4)
+
+    def is_physical_item(self):
+        return self.vars.get("device_or_media_type", tk.StringVar()).get() in PHYSICAL_ITEM_TYPES
+
+    def update_physical_tabs(self):
+        is_physical = self.is_physical_item()
+
+        def show_tab(frame, label):
+            try:
+                state = self.notebook.tab(frame, "state")
+            except tk.TclError:
+                self.notebook.add(frame, text=label)
+                return
+
+            if state == "hidden":
+                self.notebook.add(frame, text=label)
+
+        def hide_tab(frame):
+            try:
+                self.notebook.hide(frame)
+            except tk.TclError:
+                pass
+
+        if is_physical:
+            show_tab(self.photos_tab, "Photos")
+            show_tab(self.peripherals_tab, "Peripherals")
+        else:
+            hide_tab(self.photos_tab)
+            hide_tab(self.peripherals_tab)
+
+    def rebuild_type_fields(self):
         existing_values = {
-            key: variable.get().strip()
+            key: variable.get()
             for key, variable in self.type_specific_vars.items()
         }
 
@@ -1443,6 +1639,7 @@ class ItemWindow:
                 text="Select a device/media type to show relevant fields.",
                 style="Muted.TLabel",
             ).grid(row=0, column=0, columnspan=4, sticky="w")
+            self.update_physical_tabs()
             return
 
         for index, (key, label) in enumerate(fields):
@@ -1453,11 +1650,129 @@ class ItemWindow:
             ttk.Label(self.type_frame, text=label).grid(row=row, column=column, sticky="w", pady=5)
             ttk.Entry(self.type_frame, textvariable=self.type_specific_vars[key]).grid(row=row, column=column + 1, sticky="ew", pady=5)
 
+        self.update_physical_tabs()
+
     def load_item(self):
         for key, variable in self.vars.items():
             variable.set(self.item.get(key, ""))
 
         self.item_notes_text.insert("1.0", self.item.get("item_notes", ""))
+
+    def add_photo(self):
+        if not self.is_physical_item():
+            messagebox.showinfo("Item Photos", "Photos can only be added to physical evidence item types.")
+            return
+
+        photo_type = self.photo_type_var.get().strip()
+        if not photo_type:
+            messagebox.showinfo("Item Photos", "Select what the photo is of before uploading.")
+            return
+
+        path = filedialog.askopenfilename(
+            title="Select Item Photo",
+            filetypes=[
+                ("Image Files", "*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff"),
+                ("All Files", "*.*"),
+            ],
+        )
+
+        if not path:
+            return
+
+        self.item_photos.append({
+            "photo_number": str(len(self.item_photos) + 1).zfill(3),
+            "photo_type": photo_type,
+            "source_path": path,
+            "file_name": os.path.basename(path),
+            "description": self.photo_description_var.get().strip(),
+        })
+        self.photo_description_var.set("")
+        self.refresh_photos_table()
+
+    def remove_selected_photo(self):
+        selected = self.photos_tree.selection()
+        if not selected:
+            messagebox.showinfo("Remove Photo", "Select a photo to remove.")
+            return
+        index = int(selected[0])
+        self.item_photos.pop(index)
+        for photo_index, photo in enumerate(self.item_photos, start=1):
+            photo["photo_number"] = str(photo_index).zfill(3)
+        self.refresh_photos_table()
+
+    def refresh_photos_table(self):
+        for row in self.photos_tree.get_children():
+            self.photos_tree.delete(row)
+        for index, photo in enumerate(self.item_photos):
+            self.photos_tree.insert(
+                "",
+                "end",
+                iid=str(index),
+                values=(
+                    photo.get("photo_number", ""),
+                    photo.get("photo_type", ""),
+                    photo.get("description", ""),
+                    photo.get("source_path", ""),
+                ),
+            )
+        self.photo_count_var.set(f"Photos: {len(self.item_photos)}")
+
+    def add_peripheral(self):
+        if not self.is_physical_item():
+            messagebox.showinfo("Peripherals", "Peripherals can only be added to physical evidence item types.")
+            return
+        PeripheralWindow(self, title="Add Peripheral / Accessory")
+
+    def edit_selected_peripheral(self):
+        selected = self.peripherals_tree.selection()
+        if not selected:
+            messagebox.showinfo("Edit Peripheral", "Select a peripheral/accessory to edit.")
+            return
+        index = int(selected[0])
+        PeripheralWindow(
+            self,
+            title="Edit Peripheral / Accessory",
+            peripheral=self.peripherals[index].copy(),
+            index=index,
+        )
+
+    def remove_selected_peripheral(self):
+        selected = self.peripherals_tree.selection()
+        if not selected:
+            messagebox.showinfo("Remove Peripheral", "Select a peripheral/accessory to remove.")
+            return
+        index = int(selected[0])
+        self.peripherals.pop(index)
+        for peripheral_index, peripheral in enumerate(self.peripherals, start=1):
+            peripheral["peripheral_number"] = str(peripheral_index).zfill(3)
+        self.refresh_peripherals_table()
+
+    def save_peripheral(self, peripheral, index=None):
+        if index is None:
+            if not peripheral.get("peripheral_number", "").strip():
+                peripheral["peripheral_number"] = str(len(self.peripherals) + 1).zfill(3)
+            self.peripherals.append(peripheral)
+        else:
+            self.peripherals[index] = peripheral
+        self.refresh_peripherals_table()
+
+    def refresh_peripherals_table(self):
+        for row in self.peripherals_tree.get_children():
+            self.peripherals_tree.delete(row)
+        for index, peripheral in enumerate(self.peripherals):
+            self.peripherals_tree.insert(
+                "",
+                "end",
+                iid=str(index),
+                values=(
+                    peripheral.get("peripheral_number", ""),
+                    peripheral.get("peripheral_type", ""),
+                    peripheral.get("description", ""),
+                    peripheral.get("serial_identifier", ""),
+                    peripheral.get("condition", ""),
+                ),
+            )
+        self.peripheral_count_var.set(f"Peripherals: {len(self.peripherals)}")
 
     def save(self):
         item = {
@@ -1472,10 +1787,74 @@ class ItemWindow:
                 for key, variable in self.type_specific_vars.items()
                 if variable.get().strip()
             },
+            "item_photos": self.item_photos if self.is_physical_item() else [],
+            "peripherals": self.peripherals if self.is_physical_item() else [],
             "item_notes": self.item_notes_text.get("1.0", "end").strip(),
         }
 
         self.app.save_item(item, self.index)
+        self.window.destroy()
+
+
+class PeripheralWindow:
+    def __init__(self, item_window, title, peripheral=None, index=None):
+        self.item_window = item_window
+        self.app = item_window.app
+        self.index = index
+        self.peripheral = peripheral or {}
+
+        self.window = tk.Toplevel(item_window.window)
+        self.window.title(title)
+        self.window.geometry("760x420")
+        self.window.transient(item_window.window)
+        self.window.grab_set()
+        self.window.configure(bg=self.app.colors["app_background"])
+        self.vars = {}
+        self.build()
+        self.load()
+
+    def build(self):
+        frame = ttk.Frame(self.window, padding=10)
+        frame.pack(fill="both", expand=True)
+        frame.columnconfigure(1, weight=1)
+        frame.columnconfigure(3, weight=1)
+
+        fields = [
+            ("peripheral_number", "Peripheral Number", 0, 0),
+            ("peripheral_type", "Peripheral Type", 0, 2),
+            ("description", "Description", 1, 0),
+            ("serial_identifier", "Serial / Identifier", 1, 2),
+            ("condition", "Condition", 2, 0),
+            ("included_with_item", "Included With Item", 2, 2),
+        ]
+
+        for key, label, row, column in fields:
+            self.vars[key] = tk.StringVar()
+            ttk.Label(frame, text=label).grid(row=row, column=column, sticky="w", pady=5)
+            if key == "peripheral_type":
+                ttk.Combobox(frame, textvariable=self.vars[key], values=PERIPHERAL_TYPES, state="readonly").grid(row=row, column=column + 1, sticky="ew", pady=5)
+            else:
+                ttk.Entry(frame, textvariable=self.vars[key]).grid(row=row, column=column + 1, sticky="ew", pady=5)
+
+        ttk.Label(frame, text="Notes").grid(row=3, column=0, sticky="nw", pady=5)
+        self.notes_text = tk.Text(frame, height=8, width=70)
+        self.notes_text.grid(row=3, column=1, columnspan=3, sticky="nsew", pady=5)
+        self.app.style_text(self.notes_text)
+
+        button_frame = ttk.Frame(self.window, padding=10)
+        button_frame.pack(fill="x")
+        ttk.Button(button_frame, text="Save Peripheral", command=self.save, style="Primary.TButton").pack(side="right", padx=4)
+        ttk.Button(button_frame, text="Cancel", command=self.window.destroy).pack(side="right", padx=4)
+
+    def load(self):
+        for key, variable in self.vars.items():
+            variable.set(self.peripheral.get(key, ""))
+        self.notes_text.insert("1.0", self.peripheral.get("notes", ""))
+
+    def save(self):
+        peripheral = {key: variable.get().strip() for key, variable in self.vars.items()}
+        peripheral["notes"] = self.notes_text.get("1.0", "end").strip()
+        self.item_window.save_peripheral(peripheral, self.index)
         self.window.destroy()
 
 
@@ -1488,7 +1867,7 @@ class ReviewWindow:
         self.window.geometry("900x620")
         self.window.transient(app.root)
         self.window.grab_set()
-        self.window.configure(bg=app.colors["bg"])
+        self.window.configure(bg=app.colors["app_background"])
         self.build(warnings)
 
     def build(self, warnings):
@@ -1507,6 +1886,7 @@ class ReviewWindow:
             button_frame,
             text="Confirm Export",
             command=lambda: self.app.export_request(self.packet, self.window),
+            style="Primary.TButton",
         ).pack(side="right", padx=4)
         ttk.Button(button_frame, text="Cancel", command=self.window.destroy).pack(side="right", padx=4)
 
@@ -1517,10 +1897,10 @@ class SettingsWindow:
         self.settings = app.settings.copy()
         self.window = tk.Toplevel(app.root)
         self.window.title("ByteCase Intake Settings")
-        self.window.geometry("780x660")
+        self.window.geometry("820x700")
         self.window.transient(app.root)
         self.window.grab_set()
-        self.window.configure(bg=app.colors["bg"])
+        self.window.configure(bg=app.colors["app_background"])
         self.build()
         self.load()
 
@@ -1534,7 +1914,7 @@ class SettingsWindow:
         self.default_investigator_var = tk.StringVar()
         self.base_output_var = tk.StringVar()
         self.patch_image_var = tk.StringVar()
-        self.theme_var = tk.StringVar(value="dark")
+        self.theme_var = tk.StringVar(value="System Default")
         self.ack_var = tk.BooleanVar()
 
         self.row(frame, "Agency / Department Name", self.agency_var, 0)
@@ -1561,13 +1941,13 @@ class SettingsWindow:
         ttk.Combobox(
             appearance_frame,
             textvariable=self.theme_var,
-            values=["dark", "light"],
+            values=THEME_DISPLAY_NAMES,
             state="readonly",
         ).grid(row=0, column=1, sticky="ew", pady=5)
 
         ttk.Label(
             appearance_frame,
-            text="Theme changes apply after saving settings.",
+            text="Theme changes apply after saving settings. System Default follows the operating system when it can be detected.",
             style="Muted.TLabel",
         ).grid(row=1, column=0, columnspan=2, sticky="w")
 
@@ -1592,7 +1972,7 @@ class SettingsWindow:
 
         button_frame = ttk.Frame(self.window, padding=10)
         button_frame.pack(fill="x")
-        ttk.Button(button_frame, text="Save", command=self.save).pack(side="right", padx=4)
+        ttk.Button(button_frame, text="Save", command=self.save, style="Primary.TButton").pack(side="right", padx=4)
         ttk.Button(button_frame, text="Cancel", command=self.window.destroy).pack(side="right", padx=4)
 
     def row(self, parent, label, variable, row):
@@ -1606,7 +1986,7 @@ class SettingsWindow:
         self.default_investigator_var.set(settings.get("default_investigator", ""))
         self.base_output_var.set(settings.get("output_paths", {}).get("base_output_dir", ""))
         self.patch_image_var.set(settings.get("report_branding", {}).get("patch_image_path", ""))
-        self.theme_var.set(settings.get("appearance", {}).get("theme", "dark"))
+        self.theme_var.set(display_theme_preference(settings.get("appearance", {}).get("theme", "system")))
         self.ack_var.set(bool(settings.get("report_defaults", {}).get("include_acknowledgement_block", True)))
         self.investigators_text.insert("1.0", "\n".join(settings.get("investigators", [])))
 
@@ -1648,7 +2028,7 @@ class SettingsWindow:
                 "unit_name": self.unit_var.get().strip(),
                 "default_investigator": default_investigator,
                 "investigators": investigators,
-                "appearance": {"theme": self.theme_var.get()},
+                "appearance": {"theme": theme_preference_from_display(self.theme_var.get())},
                 "output_paths": {
                     "base_output_dir": self.base_output_var.get().strip(),
                     "use_shared_bytecase_root": True,

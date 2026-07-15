@@ -9,7 +9,7 @@
     "Second Example Investigator"
   ],
   "appearance": {
-    "theme": "dark"
+    "theme": "system"
   },
   "output_paths": {
     "base_output_dir": "",
