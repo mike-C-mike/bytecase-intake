@@ -341,33 +341,94 @@ def apply_theme(root: tk.Misc, settings_or_preference: Any) -> Dict[str, Any]:
         arrowcolor=[("disabled", colors["disabled_text"]), ("active", colors["accent_hover"])],
     )
 
+    is_dark = resolved_theme == THEME_DARK
+
+    # Tabs and tables deliberately avoid high-contrast hover flips. For long
+    # review sessions, a stable surface is more readable than a dramatic hover
+    # state, especially on Treeview headings where some Tk themes can otherwise
+    # fall back to near-white active cells.
+    tab_bg = colors["elevated_surface"] if is_dark else colors["panel_background"]
+    tab_selected_bg = colors["selection"] if is_dark else colors["accent_soft"]
+    tab_active_bg = colors["accent_soft"] if is_dark else colors["blue_light"]
+    tab_fg = colors["text_secondary"]
+    tab_selected_fg = colors["text_primary"]
+    tab_border = colors["border_strong"] if is_dark else colors["border"]
+
     style.configure("TNotebook", background=colors["app_background"], bordercolor=colors["border"])
-    style.configure("TNotebook.Tab", background=colors["elevated_surface"], foreground=colors["text_secondary"], padding=(12, 6))
+    style.configure(
+        "TNotebook.Tab",
+        background=tab_bg,
+        foreground=tab_fg,
+        bordercolor=tab_border,
+        padding=(12, 6),
+    )
     style.map(
         "TNotebook.Tab",
-        background=[("selected", colors["selection"]), ("active", colors["blue_mid"])],
-        foreground=[("selected", colors["text_primary"]), ("active", colors["text_primary"])],
+        background=[
+            ("selected", tab_selected_bg),
+            ("active", tab_active_bg),
+            ("!selected", tab_bg),
+        ],
+        foreground=[
+            ("selected", tab_selected_fg),
+            ("active", tab_selected_fg if is_dark else colors["text_primary"]),
+            ("!selected", tab_fg),
+        ],
+        bordercolor=[
+            ("selected", colors["accent"]),
+            ("active", colors["border_strong"]),
+            ("!active", tab_border),
+        ],
     )
+
+    table_header_bg = colors["elevated_surface"] if is_dark else colors["elevated_surface"]
+    table_header_active_bg = table_header_bg
+    table_header_fg = colors["text_primary"]
+    table_header_border = colors["border_strong"] if is_dark else colors["border"]
+    table_body_bg = colors["input_background"] if is_dark else colors["panel_background"]
+    table_selected_bg = colors["selection"]
+    table_selected_fg = colors["text_primary"]
 
     style.configure(
         "Treeview",
-        background=colors["input_background"],
-        fieldbackground=colors["input_background"],
+        background=table_body_bg,
+        fieldbackground=table_body_bg,
         foreground=colors["text_primary"],
         bordercolor=colors["border"],
+        lightcolor=colors["border"],
+        darkcolor=colors["border_strong"],
         rowheight=25,
     )
     style.configure(
         "Treeview.Heading",
-        background=colors["blue_dark"],
-        foreground=colors["text_primary"],
-        bordercolor=colors["border_strong"],
+        background=table_header_bg,
+        foreground=table_header_fg,
+        bordercolor=table_header_border,
+        relief="flat",
         font=section_font,
     )
     style.map(
+        "Treeview.Heading",
+        background=[
+            ("pressed", table_header_active_bg),
+            ("active", table_header_active_bg),
+            ("!active", table_header_bg),
+        ],
+        foreground=[
+            ("pressed", table_header_fg),
+            ("active", table_header_fg),
+            ("!active", table_header_fg),
+        ],
+        bordercolor=[
+            ("pressed", colors["accent"]),
+            ("active", colors["border_strong"]),
+            ("!active", table_header_border),
+        ],
+    )
+    style.map(
         "Treeview",
-        background=[("selected", colors["selection"])],
-        foreground=[("selected", colors["text_primary"])],
+        background=[("selected", table_selected_bg), ("!selected", table_body_bg)],
+        foreground=[("selected", table_selected_fg), ("!selected", colors["text_primary"])],
     )
 
     style.configure(

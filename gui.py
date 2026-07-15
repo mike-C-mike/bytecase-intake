@@ -1103,7 +1103,16 @@ class DigitalForensicsRequestApp:
 
     def export_request(self, packet, window):
         try:
-            txt_path, docx_path, json_path, request_folder, copied_count, copied_photo_count = save_request_outputs(packet, self.settings)
+            export_result = save_request_outputs(packet, self.settings)
+
+            if len(export_result) == 6:
+                txt_path, docx_path, json_path, request_folder, copied_count, copied_photo_count = export_result
+            elif len(export_result) == 5:
+                txt_path, docx_path, json_path, request_folder, copied_count = export_result
+                copied_photo_count = 0
+            else:
+                raise ValueError(f"Unexpected export result format: {len(export_result)} values returned.")
+
             window.destroy()
             self.status_var.set("Request exported successfully.")
             messagebox.showinfo(
@@ -1897,7 +1906,7 @@ class SettingsWindow:
         self.settings = app.settings.copy()
         self.window = tk.Toplevel(app.root)
         self.window.title("ByteCase Intake Settings")
-        self.window.geometry("820x700")
+        self.window.geometry("860x760")
         self.window.transient(app.root)
         self.window.grab_set()
         self.window.configure(bg=app.colors["app_background"])
@@ -1926,15 +1935,28 @@ class SettingsWindow:
         self.investigators_text.grid(row=3, column=1, sticky="nsew", pady=5)
         self.app.style_text(self.investigators_text)
 
-        self.row(frame, "Base Output Folder", self.base_output_var, 4)
+        self.row(frame, "ByteCase Output Root", self.base_output_var, 4)
         ttk.Button(frame, text="Browse", command=self.browse_output).grid(row=4, column=2, padx=4)
 
-        self.row(frame, "DOCX Branding Image", self.patch_image_var, 5)
-        ttk.Button(frame, text="Browse", command=self.browse_patch).grid(row=5, column=2, padx=4)
-        ttk.Button(frame, text="Clear", command=lambda: self.patch_image_var.set("")).grid(row=5, column=3, padx=4)
+        output_help = (
+            f"Leave blank to use the default local ByteCase folder: {get_default_output_root()}\n"
+            "When a custom root is selected, ByteCase creates case folders directly inside that location: "
+            "<custom root>\\<case_number>\\intake\\"
+        )
+        ttk.Label(frame, text=output_help, style="Muted.TLabel", wraplength=720, justify="left").grid(
+            row=5,
+            column=0,
+            columnspan=4,
+            sticky="w",
+            pady=(0, 8),
+        )
+
+        self.row(frame, "DOCX Branding Image", self.patch_image_var, 6)
+        ttk.Button(frame, text="Browse", command=self.browse_patch).grid(row=6, column=2, padx=4)
+        ttk.Button(frame, text="Clear", command=lambda: self.patch_image_var.set("")).grid(row=6, column=3, padx=4)
 
         appearance_frame = ttk.LabelFrame(frame, text="Appearance", padding=10)
-        appearance_frame.grid(row=6, column=0, columnspan=4, sticky="ew", pady=(12, 4))
+        appearance_frame.grid(row=7, column=0, columnspan=4, sticky="ew", pady=(12, 4))
         appearance_frame.columnconfigure(1, weight=1)
 
         ttk.Label(appearance_frame, text="Theme").grid(row=0, column=0, sticky="w", pady=5)
@@ -1955,15 +1977,15 @@ class SettingsWindow:
             frame,
             text="Include submission acknowledgement block by default",
             variable=self.ack_var,
-        ).grid(row=7, column=0, columnspan=2, sticky="w", pady=8)
+        ).grid(row=8, column=0, columnspan=2, sticky="w", pady=8)
 
         note = (
             "The branding image is optional and is used only in DOCX output. "
             "Supported formats: PNG, JPG, JPEG. "
-            f"If Base Output Folder is blank, exports default to {get_default_output_root()} with one folder per case number."
+            "The output root controls where ByteCase creates case folders; it does not change the case/tool folder pattern."
         )
-        ttk.Label(frame, text=note, style="Muted.TLabel", wraplength=680).grid(
-            row=8,
+        ttk.Label(frame, text=note, style="Muted.TLabel", wraplength=720).grid(
+            row=9,
             column=0,
             columnspan=4,
             sticky="w",

@@ -17,7 +17,7 @@ from settings_service import (
 )
 
 SCHEMA_NAME = "bytecase_digital_forensics_request_packet"
-SCHEMA_VERSION = "0.7"
+SCHEMA_VERSION = "0.9"
 
 COMMON_ITEM_FIELDS = [
     ("item_number", "Item Number"),
@@ -88,6 +88,37 @@ LEGACY_TYPE_FIELD_MAP = {
     "known_account_info": "known_account_info",
 }
 
+PHYSICAL_ITEM_TYPES = {
+    "Mobile Phone",
+    "Tablet",
+    "Computer / Laptop",
+    "External Hard Drive / SSD",
+    "External Hard Drive",
+    "USB Drive",
+    "SD / Memory Card",
+    "DVR / NVR",
+    "Other Digital Media",
+}
+
+PHOTO_TYPE_LABELS = {
+    "Front": "front",
+    "Back": "back",
+    "Screen": "screen",
+    "Top": "top",
+    "Bottom": "bottom",
+    "Left Side": "left_side",
+    "Right Side": "right_side",
+    "Ports / Connectors": "ports_connectors",
+    "Serial / Identifier": "serial_identifier",
+    "Asset Tag / Label": "asset_tag_label",
+    "Damage": "damage",
+    "Packaging / Seal": "packaging_seal",
+    "Accessories": "accessories",
+    "Peripherals": "peripherals",
+    "Condition / Intake": "condition_intake",
+    "Other": "other",
+}
+
 
 def safe_filename(value, fallback="request"):
     value = (value or "").strip() or fallback
@@ -154,7 +185,42 @@ def normalize_attachment(attachment, index):
         "notes": str(attachment.get("notes", "")).strip(),
         "copy_status": str(attachment.get("copy_status", "")).strip(),
         "copied_path": str(attachment.get("copied_path", "")).strip(),
+        "relative_copied_path": str(attachment.get("relative_copied_path", "")).strip(),
         "copy_error": str(attachment.get("copy_error", "")).strip(),
+    }
+
+
+def normalize_photo(photo, index):
+    source_path = str(photo.get("source_path", "")).strip()
+    file_name = str(photo.get("file_name", "")).strip()
+
+    if not file_name and source_path:
+        file_name = Path(source_path).name
+
+    photo_number = str(photo.get("photo_number", "")).strip() or str(index).zfill(3)
+
+    return {
+        "photo_number": photo_number,
+        "photo_type": str(photo.get("photo_type", "")).strip(),
+        "source_path": source_path,
+        "file_name": file_name,
+        "description": str(photo.get("description", "")).strip(),
+        "copy_status": str(photo.get("copy_status", "")).strip(),
+        "copied_path": str(photo.get("copied_path", "")).strip(),
+        "relative_copied_path": str(photo.get("relative_copied_path", "")).strip(),
+        "copy_error": str(photo.get("copy_error", "")).strip(),
+    }
+
+
+def normalize_peripheral(peripheral, index):
+    return {
+        "peripheral_number": str(peripheral.get("peripheral_number", "")).strip() or str(index).zfill(3),
+        "peripheral_type": str(peripheral.get("peripheral_type", "")).strip(),
+        "description": str(peripheral.get("description", "")).strip(),
+        "serial_identifier": str(peripheral.get("serial_identifier", "")).strip(),
+        "condition": str(peripheral.get("condition", "")).strip(),
+        "included_with_item": str(peripheral.get("included_with_item", "")).strip(),
+        "notes": str(peripheral.get("notes", "")).strip(),
     }
 
 
@@ -178,6 +244,14 @@ def normalize_evidence_item(item, index):
         if value and type_key not in cleaned_type_specific:
             cleaned_type_specific[type_key] = value
 
+    raw_photos = item.get("item_photos", [])
+    if not isinstance(raw_photos, list):
+        raw_photos = []
+
+    raw_peripherals = item.get("peripherals", [])
+    if not isinstance(raw_peripherals, list):
+        raw_peripherals = []
+
     return {
         "item_number": item_number,
         "evidence_number": str(item.get("evidence_number", "")).strip(),
@@ -186,6 +260,8 @@ def normalize_evidence_item(item, index):
         "condition_received": str(item.get("condition_received", "")).strip(),
         "packaging_seal_info": str(item.get("packaging_seal_info", "")).strip(),
         "type_specific": cleaned_type_specific,
+        "item_photos": [normalize_photo(photo, photo_index) for photo_index, photo in enumerate(raw_photos, start=1)],
+        "peripherals": [normalize_peripheral(peripheral, peripheral_index) for peripheral_index, peripheral in enumerate(raw_peripherals, start=1)],
         "item_notes": str(item.get("item_notes", "")).strip(),
     }
 
@@ -232,6 +308,12 @@ def summarize_item_type_specific(item, max_parts=3):
     return "; ".join(parts)
 
 
+def get_item_folder_name(item, index):
+    item_number = safe_filename(str(item.get("item_number", "")).strip() or str(index).zfill(3), str(index).zfill(3)).lower()
+    device_type = safe_filename(str(item.get("device_or_media_type", "")).strip() or "item", "item").lower()
+    return f"item_{item_number}_{device_type}"
+
+
 def copy_attachments_to_export_folder(packet, request_folder):
     attachments = packet.get("attachments", [])
     attachments_folder = request_folder / "attachments"
@@ -267,6 +349,7 @@ def copy_attachments_to_export_folder(packet, request_folder):
             record["file_name"] = source_path.name
             record["copy_status"] = "Copied"
             record["copied_path"] = str(destination)
+            record["relative_copied_path"] = str(destination.relative_to(request_folder))
             record["copy_error"] = ""
             copied_count += 1
 
@@ -278,6 +361,81 @@ def copy_attachments_to_export_folder(packet, request_folder):
 
     packet["attachments"] = updated_attachments
     return copied_count
+
+
+def copy_item_photos_to_export_folders(packet, request_folder):
+    items = packet.get("evidence_items", [])
+    copied_count = 0
+
+    if not items:
+        return copied_count
+
+    items_root = request_folder / "items"
+    items_root.mkdir(parents=True, exist_ok=True)
+
+    for item_index, item in enumerate(items, start=1):
+        photos = item.get("item_photos", [])
+        if not photos:
+            continue
+
+        item_folder = items_root / get_item_folder_name(item, item_index)
+        photos_folder = item_folder / "photos"
+        photos_folder.mkdir(parents=True, exist_ok=True)
+
+        type_counts = {}
+        updated_photos = []
+
+        for photo_index, photo in enumerate(photos, start=1):
+            record = normalize_photo(photo, photo_index)
+            photo_type = record.get("photo_type", "") or "Other"
+            type_slug = PHOTO_TYPE_LABELS.get(photo_type, safe_filename(photo_type, "photo").lower())
+            type_counts[type_slug] = type_counts.get(type_slug, 0) + 1
+
+            source_path_value = record.get("source_path", "")
+            if not source_path_value:
+                record["copy_status"] = "Not copied"
+                record["copy_error"] = "No source path provided."
+                updated_photos.append(record)
+                continue
+
+            source_path = Path(source_path_value)
+            if not source_path.exists() or not source_path.is_file():
+                record["copy_status"] = "Not copied"
+                record["copy_error"] = "Source file was not found or is not a file."
+                updated_photos.append(record)
+                continue
+
+            suffix = source_path.suffix.lower() or ".dat"
+            destination_name = f"{type_slug}_{str(type_counts[type_slug]).zfill(3)}{suffix}"
+
+            try:
+                destination = unique_destination_path(photos_folder, destination_name)
+                shutil.copy2(source_path, destination)
+
+                record["file_name"] = destination.name
+                record["copy_status"] = "Copied"
+                record["copied_path"] = str(destination)
+                record["relative_copied_path"] = str(destination.relative_to(request_folder))
+                record["copy_error"] = ""
+                copied_count += 1
+
+            except OSError as exc:
+                record["copy_status"] = "Copy failed"
+                record["copy_error"] = str(exc)
+
+            updated_photos.append(record)
+
+        item["item_photos"] = updated_photos
+
+    return copied_count
+
+
+def count_item_photos(items):
+    return sum(len(item.get("item_photos", []) or []) for item in items)
+
+
+def count_peripherals(items):
+    return sum(len(item.get("peripherals", []) or []) for item in items)
 
 
 def build_request_packet(
@@ -293,6 +451,21 @@ def build_request_packet(
     handoff,
     include_acknowledgement_block,
 ):
+    normalized_items = [
+        normalize_evidence_item(item, index)
+        for index, item in enumerate(evidence_items, start=1)
+    ]
+    normalized_attachments = [
+        normalize_attachment(attachment, index)
+        for index, attachment in enumerate(attachments, start=1)
+    ]
+
+    handoff_info = clean_dict(handoff)
+    handoff_info["item_count_submitted"] = str(len(normalized_items))
+    handoff_info["attachment_count_submitted"] = str(len(normalized_attachments))
+    handoff_info["item_photo_count"] = str(count_item_photos(normalized_items))
+    handoff_info["peripheral_count"] = str(count_peripherals(normalized_items))
+
     return {
         "app_name": APP_NAME,
         "app_subtitle": APP_SUBTITLE,
@@ -323,14 +496,8 @@ def build_request_packet(
             "authorized_keywords": str(scope.get("authorized_keywords", "")).strip(),
             "scope_notes": str(scope.get("scope_notes", "")).strip(),
         },
-        "evidence_items": [
-            normalize_evidence_item(item, index)
-            for index, item in enumerate(evidence_items, start=1)
-        ],
-        "attachments": [
-            normalize_attachment(attachment, index)
-            for index, attachment in enumerate(attachments, start=1)
-        ],
+        "evidence_items": normalized_items,
+        "attachments": normalized_attachments,
         "request_details": {
             "requested_actions": clean_list(details.get("requested_actions", [])),
             "investigative_objective": str(details.get("investigative_objective", "")).strip(),
@@ -342,16 +509,18 @@ def build_request_packet(
             "urgency_flags": clean_list(priority.get("urgency_flags", [])),
             "priority_notes": str(priority.get("priority_notes", "")).strip(),
         },
-        "handoff_info": clean_dict(handoff),
+        "handoff_info": handoff_info,
         "report_options": {
             "include_acknowledgement_block": bool(include_acknowledgement_block),
-            "export_style": "bytecase_case_folder_with_adaptive_item_templates",
+            "export_style": "bytecase_case_folder_with_item_folders_photos_and_handoff_receipt",
         },
         "disclaimer": (
             "This request packet documents information provided for a digital forensic request. "
             "It does not represent forensic findings, examiner conclusions, legal advice, or independent "
             "verification of the submitted information. Legal authority and scope should be confirmed "
-            "under agency policy and applicable law before forensic work begins."
+            "under agency policy and applicable law before forensic work begins. ByteCase Intake does not "
+            "replace an agency evidence management system, chain-of-custody record, property record, legal review, "
+            "official evidence photographs, or forensic examination report. Item photos are intake reference images only."
         ),
     }
 
@@ -377,6 +546,58 @@ def add_bullet_section(lines, title, values, empty_text="None selected."):
         lines.append(empty_text)
 
     lines.append("")
+
+
+def add_item_photos_text(lines, photos):
+    lines.append("Item Photos")
+    lines.append("~" * 40)
+
+    if not photos:
+        lines.append("No item photos listed.")
+        lines.append("")
+        return
+
+    for photo in photos:
+        lines.append(f"Photo {photo.get('photo_number', '')}")
+        rows = [
+            ("Type", photo.get("photo_type", "")),
+            ("File Name", photo.get("file_name", "")),
+            ("Source Path", photo.get("source_path", "")),
+            ("Copied Path", photo.get("copied_path", "")),
+            ("Relative Copied Path", photo.get("relative_copied_path", "")),
+            ("Copy Status", photo.get("copy_status", "")),
+            ("Copy Error", photo.get("copy_error", "")),
+            ("Description", photo.get("description", "")),
+        ]
+        for label, value in rows:
+            if value:
+                lines.append(f"{label}: {value}")
+        lines.append("")
+
+
+def add_peripherals_text(lines, peripherals):
+    lines.append("Peripherals / Accessories")
+    lines.append("~" * 40)
+
+    if not peripherals:
+        lines.append("No peripherals/accessories listed.")
+        lines.append("")
+        return
+
+    for peripheral in peripherals:
+        lines.append(f"Peripheral {peripheral.get('peripheral_number', '')}")
+        rows = [
+            ("Type", peripheral.get("peripheral_type", "")),
+            ("Description", peripheral.get("description", "")),
+            ("Serial / Identifier", peripheral.get("serial_identifier", "")),
+            ("Condition", peripheral.get("condition", "")),
+            ("Included With Item", peripheral.get("included_with_item", "")),
+            ("Notes", peripheral.get("notes", "")),
+        ]
+        for label, value in rows:
+            if value:
+                lines.append(f"{label}: {value}")
+        lines.append("")
 
 
 def build_txt_request(packet):
@@ -455,13 +676,15 @@ def build_txt_request(packet):
         lines.append("")
     else:
         for index, item in enumerate(items, start=1):
-            lines.append(f"Item {index}")
+            lines.append(f"Item {item.get('item_number', '') or index}")
             lines.append("~" * 40)
 
             for label, value in get_item_rows(item):
                 lines.append(f"{label}: {value}")
 
             lines.append("")
+            add_peripherals_text(lines, item.get("peripherals", []))
+            add_item_photos_text(lines, item.get("item_photos", []))
 
     lines.extend(["ATTACHMENT INDEX", "-" * 80])
 
@@ -478,6 +701,7 @@ def build_txt_request(packet):
                 ("File Name", attachment.get("file_name", "")),
                 ("Source Path", attachment.get("source_path", "")),
                 ("Copied Path", attachment.get("copied_path", "")),
+                ("Relative Copied Path", attachment.get("relative_copied_path", "")),
                 ("Copy Status", attachment.get("copy_status", "")),
                 ("Copy Error", attachment.get("copy_error", "")),
                 ("Related Item", attachment.get("related_item", "")),
@@ -524,9 +748,21 @@ def build_txt_request(packet):
     lines.extend([f"Priority Notes: {priority.get('priority_notes', '')}", ""])
 
     add_key_value_section(lines, "SUBMISSION / HANDOFF", [
+        ("Submitted By", handoff.get("submitted_by", "")),
+        ("Submitted By Title / Unit", handoff.get("submitted_by_title_unit", "")),
+        ("Submitted Date / Time", handoff.get("submitted_date_time", "")),
+        ("Submitted To", handoff.get("submitted_to", "")),
+        ("Receiving Unit / Lab", handoff.get("receiving_unit_lab", "")),
         ("Transfer Method", handoff.get("transfer_method", "")),
-        ("Packaging / Seal Information", handoff.get("packaging_seal_info", "")),
-        ("Handoff Notes", handoff.get("handoff_notes", "")),
+        ("Evidence Packaging / Seal Number", handoff.get("packaging_seal_info", "")),
+        ("Condition at Submission", handoff.get("condition_at_submission", "")),
+        ("Evidence Items Submitted", handoff.get("item_count_submitted", "")),
+        ("Attachments Listed", handoff.get("attachment_count_submitted", "")),
+        ("Item Photos Listed", handoff.get("item_photo_count", "")),
+        ("Peripherals / Accessories Listed", handoff.get("peripheral_count", "")),
+        ("Received By", handoff.get("received_by", "")),
+        ("Received Date / Time", handoff.get("received_date_time", "")),
+        ("Receiving Notes", handoff.get("receiving_notes", "")),
     ])
 
     lines.extend([
@@ -540,13 +776,22 @@ def build_txt_request(packet):
         lines.extend([
             "SUBMISSION ACKNOWLEDGEMENT",
             "-" * 80,
-            f"Submitted By: {investigator.get('submitting_investigator', '')}",
-            "Submitting Investigator Signature: _______________________________",
-            "Date: ____________________",
+            "This acknowledgement documents receipt of a digital forensic request packet and related submitted materials. It does not replace the agency's official evidence management system, chain-of-custody record, property record, legal review process, official evidence photographs, or forensic examination report.",
             "",
-            "Received By: _______________________________",
+            f"Submitted By: {handoff.get('submitted_by') or investigator.get('submitting_investigator', '')}",
+            f"Title / Unit: {handoff.get('submitted_by_title_unit', '')}",
+            f"Date / Time Submitted: {handoff.get('submitted_date_time', '')}",
+            "Submitted By Signature: _______________________________",
+            "",
+            f"Received By: {handoff.get('received_by', '')}",
+            f"Receiving Unit / Lab: {handoff.get('receiving_unit_lab', '')}",
+            f"Date / Time Received: {handoff.get('received_date_time', '')}",
             "Receiving Staff Signature: _______________________________",
-            "Date / Time Received: ____________________",
+            "",
+            f"Items Submitted: {handoff.get('item_count_submitted', '')}",
+            f"Attachments Listed: {handoff.get('attachment_count_submitted', '')}",
+            f"Item Photos Listed: {handoff.get('item_photo_count', '')}",
+            f"Packaging / Seal Information: {handoff.get('packaging_seal_info', '')}",
             "",
         ])
 
@@ -571,7 +816,11 @@ def save_request_outputs(packet, settings):
     request_folder.mkdir(parents=True, exist_ok=True)
 
     output_packet = deepcopy(packet)
-    copied_count = copy_attachments_to_export_folder(output_packet, request_folder)
+    copied_attachment_count = copy_attachments_to_export_folder(output_packet, request_folder)
+    copied_photo_count = copy_item_photos_to_export_folders(output_packet, request_folder)
+
+    output_packet["handoff_info"]["attachments_copied"] = str(copied_attachment_count)
+    output_packet["handoff_info"]["item_photos_copied"] = str(copied_photo_count)
 
     txt_path = request_folder / f"{base_name}.txt"
     docx_path = request_folder / f"{base_name}.docx"
@@ -583,4 +832,4 @@ def save_request_outputs(packet, settings):
     json_data = json.dumps(output_packet, indent=2)
     json_path.write_text(json_data, encoding="utf-8")
 
-    return txt_path, docx_path, json_path, request_folder, copied_count
+    return txt_path, docx_path, json_path, request_folder, copied_attachment_count, copied_photo_count

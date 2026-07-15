@@ -1,98 +1,107 @@
-# Digital Forensics Request Builder
+# ByteCase Intake
 
-Digital Forensics Request Builder helps investigators create a clear, scoped digital forensic request packet before forensic work begins.
+**Digital Forensics Request Builder**  
+Part of the **ByteCase** toolset by **Forensics Byte**  
+Product domain: `byte-case.com`
 
-Current version: **v0.4.0**
+ByteCase Intake is a desktop application for building structured digital forensics intake/request packets. It helps investigators and examiners document case details, legal authority, scope, submitted evidence items, supporting attachments, physical item photos, peripherals/accessories, priority, and submission/handoff information before forensic work begins.
 
-## Purpose
-
-This tool is intended for investigator-side request documentation. It helps capture what is being submitted, what is being requested, the legal authority or scope information provided, and the basic handoff details for a digital forensic request.
-
-It is part of the Forensics Byte toolset.
-
-## What v0.2.0 Includes
-
-- Case and agency information
-- Submitting investigator information
-- Single evidence/device item section
-- Legal authority section
-- Requested forensic action checkboxes
-- Investigative objective text area
-- Known facts/context for examiner text area
-- Scope notes text area
-- Priority and urgency flags
-- Submission/handoff notes
-- Optional acknowledgement/signature block
-- Review-before-export workflow
-- TXT export
-- DOCX export
-- JSON export
-- Basic settings
-- Optional DOCX branding image
-- Dark/light theme
-
-## Output Files
-
-Each export creates:
+## Current release
 
 ```text
-TXT request packet
-DOCX request packet
-JSON structured request packet
+ByteCase Intake v0.9.0 Release Candidate
 ```
 
-The JSON output is designed to become the bridge for future Forensics Byte integration, such as importing request information into the Acquisition Packet Generator.
+This release candidate is intended for early testing, feedback, and workflow validation.
 
-# README update for v0.4.0
+## What this tool does
 
-Update the current version section to:
+ByteCase Intake helps create a packet containing:
+
+- Case and submitting investigator information
+- Legal authority and scope information
+- Requested forensic actions
+- Evidence/device item descriptions
+- Device/media-specific item fields
+- Physical item photo cataloging
+- Peripherals/accessories lists
+- Supporting document attachment index
+- Submission and handoff receipt information
+- TXT, DOCX, and JSON outputs
+- Copied attachments and copied item photos in organized folders
+
+## What this tool does not do
+
+ByteCase Intake does **not** perform forensic acquisition, extraction, hashing, parsing, artifact analysis, legal review, or investigative conclusions.
+
+It creates a structured request and intake packet from user-provided information. Legal authority, scope, agency policy, evidence handling, and chain-of-custody requirements remain the responsibility of the user and their agency.
+
+ByteCase Intake does not replace:
+
+- Official evidence management systems
+- Official chain-of-custody records
+- Property/evidence room records
+- Legal review processes
+- Forensic examination reports
+- Agency policy requirements
+
+## Default output structure
+
+By default, ByteCase Intake writes to a local ByteCase folder under the current user's profile:
 
 ```text
-v0.4.0
+C:\Users\<currentuser>\ByteCase\<case_number>\intake\
 ```
 
-Add these feature bullets under Core Features:
-
-- Dark and light mode setting
-- Multi-item evidence/device support
-- Legal authority and scope builder
-- Scope limitation fields for date ranges, apps/platforms, accounts, and keywords
-- Scope validation warnings before export
-
-Update the output list if needed:
-
-- TXT request packet
-- DOCX request packet
-- JSON saved request packet
-
-Add this scope note:
+Example:
 
 ```text
-The legal authority and scope fields are documentation aids only. They help investigators describe the basis and scope of a request, but they do not provide legal advice or decide whether a search is authorized. Agencies should follow their own policy, prosecutor guidance, and applicable law.
+C:\Users\Matt\ByteCase\26001234\intake\
+  26001234_2026-07-15_14-30-00_bytecase_intake.txt
+  26001234_2026-07-15_14-30-00_bytecase_intake.docx
+  26001234_2026-07-15_14-30-00_bytecase_intake.json
+  attachments\
+  items\
+    item_001_mobile_phone\
+      photos\
+        front_001.jpg
+        back_001.jpg
+        serial_identifier_001.jpg
+```
 
-## Scope Boundary
+A custom ByteCase output root can be set in **Settings**. When a custom root is selected, case folders are created directly inside that custom root:
 
-This tool does not perform acquisition, extraction, hashing, evidence analysis, artifact parsing, or investigative conclusions.
+```text
+<custom_output_root>\<case_number>\intake\
+```
 
-It documents information provided for a digital forensic request.
+The app does not add an extra `ByteCase` folder inside a custom root.
 
-## Important Legal / Policy Note
+## Themes
 
-This tool is not legal advice and does not decide whether a search, extraction, or review is legally authorized.
+ByteCase Intake supports:
 
-Agencies should review workflows, forms, language, and templates with their own policy authority, legal advisor, prosecutor, or command staff before operational use.
+- Dark
+- Light
+- System Default
 
-## Dependency Note
+The visual theme is based on the ByteCase desktop design system using deep blue, charcoal, cool gray, and emerald green. The selected preference is saved in `settings.json`.
 
-Runtime dependencies:
+To switch themes:
 
-- Python standard library
-- Tkinter
-- python-docx
+```text
+Settings -> Appearance -> Theme
+```
 
-`python-docx` is used for DOCX report generation and is distributed under the MIT License.
+Some operating-system-controlled dialogs, such as native file pickers and message boxes, may not fully follow the app theme because they are controlled by the OS and Tkinter runtime.
 
-## Run From Source
+## Installation from source
+
+Recommended Python version:
+
+```text
+Python 3.10+
+```
 
 Install dependencies:
 
@@ -100,34 +109,63 @@ Install dependencies:
 py -m pip install -r requirements.txt
 ```
 
-Run:
+Run from source:
 
 ```powershell
 py .\main.py
 ```
 
-## Suggested Workflow
+## Packaging
+
+Packaging instructions are in:
 
 ```text
-1. Enter case and investigator information.
-2. Enter the evidence/device item.
-3. Select legal authority and requested forensic actions.
-4. Describe what the investigator is looking for.
-5. Add known facts, scope notes, and priority details.
-6. Review the request.
-7. Export TXT, DOCX, and JSON outputs.
+BUILD.md
 ```
 
-## Roadmap
+The project includes a PyInstaller spec and PowerShell build script for Windows release builds.
 
-Planned future versions:
+## Dependencies and licensing
+
+Dependency and license notes are in:
 
 ```text
-v0.3.0 - Multi-item evidence support
-v0.4.0 - Legal authority and scope builder
-v0.5.0 - Attachment index and export folder
-v0.6.0 - Submission / chain-of-custody handoff section
-v0.7.0 - Consent form template packaging
-v0.8.0 - Settings, agency profile, packaging docs
-v0.9.0 - GitHub pre-release candidate
+DEPENDENCIES.md
 ```
+
+No new third-party dependency was added for the ByteCase visual theme system or item photo cataloging.
+
+## Known limitations
+
+Known limitations are tracked in:
+
+```text
+KNOWN_LIMITATIONS.md
+```
+
+## Release checklist
+
+Before publishing a release, complete:
+
+```text
+RELEASE_CHECKLIST.md
+```
+
+## Suggested GitHub topics
+
+```text
+digital-forensics
+dfir
+forensics
+evidence
+law-enforcement
+documentation
+python
+tkinter
+bytecase
+forensics-byte
+```
+
+## License
+
+Use the repository license file for the governing project license. Dependency licenses are documented separately in `DEPENDENCIES.md`.

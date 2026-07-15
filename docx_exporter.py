@@ -194,6 +194,47 @@ def get_item_rows(item):
     return rows
 
 
+def add_item_photos(document, photos):
+    document.add_heading("Item Photos", level=3)
+
+    if not photos:
+        document.add_paragraph("No item photos listed.")
+        return
+
+    for photo in photos:
+        document.add_paragraph(f"Photo {photo.get('photo_number', '')}", style="List Bullet")
+        add_key_value_table(document, [
+            ("Type", photo.get("photo_type", "")),
+            ("File Name", photo.get("file_name", "")),
+            ("Relative Copied Path", photo.get("relative_copied_path", "")),
+            ("Copy Status", photo.get("copy_status", "")),
+            ("Copy Error", photo.get("copy_error", "")),
+            ("Description", photo.get("description", "")),
+        ])
+
+
+def add_peripherals(document, peripherals):
+    document.add_heading("Peripherals / Accessories", level=3)
+
+    if not peripherals:
+        document.add_paragraph("No peripherals/accessories listed.")
+        return
+
+    for peripheral in peripherals:
+        heading = f"Peripheral {peripheral.get('peripheral_number', '')}"
+        if peripheral.get("peripheral_type"):
+            heading += f" - {peripheral.get('peripheral_type')}"
+        document.add_paragraph(heading, style="List Bullet")
+        add_key_value_table(document, [
+            ("Type", peripheral.get("peripheral_type", "")),
+            ("Description", peripheral.get("description", "")),
+            ("Serial / Identifier", peripheral.get("serial_identifier", "")),
+            ("Condition", peripheral.get("condition", "")),
+            ("Included With Item", peripheral.get("included_with_item", "")),
+            ("Notes", peripheral.get("notes", "")),
+        ])
+
+
 def add_evidence_items(document, items):
     document.add_heading("Evidence / Device Items", level=1)
 
@@ -211,6 +252,8 @@ def add_evidence_items(document, items):
 
         document.add_heading(heading_text, level=2)
         add_key_value_table(document, get_item_rows(item))
+        add_peripherals(document, item.get("peripherals", []))
+        add_item_photos(document, item.get("item_photos", []))
 
 
 def add_attachments(document, attachments):
@@ -233,8 +276,7 @@ def add_attachments(document, attachments):
         add_key_value_table(document, [
             ("Type", attachment.get("attachment_type", "")),
             ("File Name", attachment.get("file_name", "")),
-            ("Source Path", attachment.get("source_path", "")),
-            ("Copied Path", attachment.get("copied_path", "")),
+            ("Relative Copied Path", attachment.get("relative_copied_path", "")),
             ("Copy Status", attachment.get("copy_status", "")),
             ("Copy Error", attachment.get("copy_error", "")),
             ("Related Item", attachment.get("related_item", "")),
@@ -243,6 +285,52 @@ def add_attachments(document, attachments):
             ("Description", attachment.get("description", "")),
             ("Notes", attachment.get("notes", "")),
         ])
+
+
+def add_handoff(document, handoff):
+    document.add_heading("Submission / Handoff", level=1)
+    add_key_value_table(document, [
+        ("Submitted By", handoff.get("submitted_by", "")),
+        ("Submitted By Title / Unit", handoff.get("submitted_by_title_unit", "")),
+        ("Submitted Date / Time", handoff.get("submitted_date_time", "")),
+        ("Submitted To", handoff.get("submitted_to", "")),
+        ("Receiving Unit / Lab", handoff.get("receiving_unit_lab", "")),
+        ("Transfer Method", handoff.get("transfer_method", "")),
+        ("Evidence Packaging / Seal Number", handoff.get("packaging_seal_info", "")),
+        ("Condition at Submission", handoff.get("condition_at_submission", "")),
+        ("Evidence Items Submitted", handoff.get("item_count_submitted", "")),
+        ("Attachments Listed", handoff.get("attachment_count_submitted", "")),
+        ("Attachments Copied", handoff.get("attachments_copied", "")),
+        ("Item Photos Listed", handoff.get("item_photo_count", "")),
+        ("Item Photos Copied", handoff.get("item_photos_copied", "")),
+        ("Peripherals / Accessories Listed", handoff.get("peripheral_count", "")),
+        ("Received By", handoff.get("received_by", "")),
+        ("Received Date / Time", handoff.get("received_date_time", "")),
+        ("Receiving Notes", handoff.get("receiving_notes", "")),
+    ])
+
+
+def add_acknowledgement(document, handoff, investigator):
+    document.add_heading("Submission Acknowledgement", level=1)
+    document.add_paragraph(
+        "This acknowledgement documents receipt of a digital forensic request packet and related submitted materials. "
+        "It does not replace the agency's official evidence management system, chain-of-custody record, property record, "
+        "legal review process, official evidence photographs, or forensic examination report."
+    )
+    add_key_value_table_allow_empty(document, [
+        ("Submitted By", handoff.get("submitted_by") or investigator.get("submitting_investigator", "")),
+        ("Title / Unit", handoff.get("submitted_by_title_unit", "")),
+        ("Date / Time Submitted", handoff.get("submitted_date_time", "")),
+        ("Received By", handoff.get("received_by", "")),
+        ("Receiving Unit / Lab", handoff.get("receiving_unit_lab", "")),
+        ("Date / Time Received", handoff.get("received_date_time", "")),
+        ("Items Submitted", handoff.get("item_count_submitted", "")),
+        ("Attachments Listed", handoff.get("attachment_count_submitted", "")),
+        ("Item Photos Listed", handoff.get("item_photo_count", "")),
+        ("Packaging / Seal Information", handoff.get("packaging_seal_info", "")),
+    ])
+    document.add_paragraph("Submitted By Signature: _______________________________")
+    document.add_paragraph("Receiving Staff Signature: _______________________________")
 
 
 def build_docx_request(packet, settings):
@@ -270,20 +358,7 @@ def build_docx_request(packet, settings):
 
     subtitle = document.add_paragraph()
     subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    subtitle_run = subtitle.add_run("Digital Forensics Request Packet")
-    subtitle_run.bold = True
-    subtitle_run.font.size = Pt(12)
-
-    attribution = document.add_paragraph()
-    attribution.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    attribution.add_run(
-        f"Part of the {packet.get('suite_name', 'ByteCase')} toolset by {packet.get('publisher', 'Forensics Byte')}"
-    )
-
-    if packet.get("product_domain"):
-        domain = document.add_paragraph()
-        domain.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        domain.add_run(packet.get("product_domain", ""))
+    subtitle.add_run("Digital Forensics Request Packet")
 
     if agency.get("agency_name") or agency.get("unit_name"):
         paragraph = document.add_paragraph()
@@ -302,17 +377,18 @@ def build_docx_request(packet, settings):
         ("Generated By", f"{packet.get('app_name', '')} - {packet.get('app_subtitle', '')} v{packet.get('app_version', '')}"),
         ("Created At", packet.get("created_at", "")),
         ("Schema", f"{packet.get('schema_name', '')} v{packet.get('schema_version', '')}"),
+        ("Product Domain", packet.get("product_domain", "")),
     ])
 
     document.add_heading("Case Information", level=1)
-    add_key_value_table_allow_empty(document, [
+    add_key_value_table(document, [
         ("Case Number", case_info.get("case_number", "")),
         ("Agency Case Number", case_info.get("agency_case_number", "")),
         ("Offense / Incident Type", case_info.get("offense_type", "")),
     ])
 
     document.add_heading("Submitting Investigator", level=1)
-    add_key_value_table_allow_empty(document, [
+    add_key_value_table(document, [
         ("Submitting Agency", investigator.get("submitting_agency", "")),
         ("Submitting Unit", investigator.get("submitting_unit", "")),
         ("Submitting Investigator", investigator.get("submitting_investigator", "")),
@@ -322,7 +398,7 @@ def build_docx_request(packet, settings):
     ])
 
     document.add_heading("Legal Authority", level=1)
-    add_key_value_table_allow_empty(document, [
+    add_key_value_table(document, [
         ("Authority Type", authority.get("authority_type", "")),
         ("Authority Date", authority.get("authority_date", "")),
         ("Authority Reference / Document Number", authority.get("authority_reference", "")),
@@ -333,7 +409,7 @@ def build_docx_request(packet, settings):
     add_bullets(document, scope.get("scope_options", []))
 
     document.add_heading("Scope Limitations", level=1)
-    add_key_value_table_allow_empty(document, [
+    add_key_value_table(document, [
         ("Date Range Limited", "Yes" if scope.get("date_range_limited") else "No"),
         ("Authorized Date Range", scope.get("authorized_date_range", "")),
         ("Specific Apps / Platforms Limited", "Yes" if scope.get("specific_apps_limited") else "No"),
@@ -347,7 +423,6 @@ def build_docx_request(packet, settings):
 
     add_evidence_items(document, items)
     add_attachments(document, attachments)
-
     document.add_heading("Requested Forensic Actions", level=1)
     add_bullets(document, details.get("requested_actions", []))
 
@@ -355,7 +430,7 @@ def build_docx_request(packet, settings):
     add_text_section(document, "Known Facts / Context for Examiner", details.get("known_facts_for_examiner", ""))
 
     document.add_heading("Priority / Urgency", level=1)
-    add_key_value_table_allow_empty(document, [
+    add_key_value_table(document, [
         ("Priority", priority.get("priority", "")),
         ("Requested Due Date", priority.get("requested_due_date", "")),
     ])
@@ -363,27 +438,13 @@ def build_docx_request(packet, settings):
     add_bullets(document, priority.get("urgency_flags", []))
     add_text_section(document, "Priority Notes", priority.get("priority_notes", ""))
 
-    document.add_heading("Submission / Handoff", level=1)
-    add_key_value_table_allow_empty(document, [
-        ("Transfer Method", handoff.get("transfer_method", "")),
-        ("Packaging / Seal Information", handoff.get("packaging_seal_info", "")),
-        ("Handoff Notes", handoff.get("handoff_notes", "")),
-    ])
+    add_handoff(document, handoff)
 
     document.add_heading("Important Scope Note", level=1)
     document.add_paragraph(packet.get("disclaimer", ""))
 
     if options.get("include_acknowledgement_block"):
-        document.add_heading("Submission Acknowledgement", level=1)
-        add_key_value_table_allow_empty(document, [
-            ("Submitted By", investigator.get("submitting_investigator", "")),
-            ("Date", ""),
-        ])
-        document.add_paragraph("Submitting Investigator Signature: _______________________________")
-        document.add_paragraph()
-        document.add_paragraph("Received By: _______________________________")
-        document.add_paragraph("Receiving Staff Signature: _______________________________")
-        document.add_paragraph("Date / Time Received: _______________________________")
+        add_acknowledgement(document, handoff, investigator)
 
     document.add_paragraph()
     end = document.add_paragraph("End of ByteCase Intake Request Packet")
