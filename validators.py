@@ -28,6 +28,31 @@ def validate_request_for_export(packet):
     if not evidence_items:
         warnings.append("No evidence/device items have been added.")
 
+    for index, item in enumerate(evidence_items, start=1):
+        item_number = item.get("item_number", "").strip() or str(index).zfill(3)
+        evidence_number = item.get("evidence_number", "").strip()
+        device_type = item.get("device_or_media_type", "").strip()
+        short_description = item.get("short_description", "").strip()
+        condition_received = item.get("condition_received", "").strip()
+        type_specific = item.get("type_specific", {})
+
+        if not evidence_number:
+            warnings.append(f"Evidence item {item_number} does not have an evidence number.")
+
+        if not device_type:
+            warnings.append(f"Evidence item {item_number} does not have a device/media type selected.")
+
+        if not short_description:
+            warnings.append(f"Evidence item {item_number} does not have a short description.")
+
+        if not condition_received:
+            warnings.append(f"Evidence item {item_number} does not have condition received documented.")
+
+        if not isinstance(type_specific, dict):
+            warnings.append(f"Evidence item {item_number} has an invalid type-specific field structure.")
+        elif device_type and not any(str(value or "").strip() for value in type_specific.values()):
+            warnings.append(f"Evidence item {item_number} has a device/media type selected but no type-specific details entered.")
+
     if not details.get("requested_actions", []):
         warnings.append("No requested forensic actions were selected.")
 

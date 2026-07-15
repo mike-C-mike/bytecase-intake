@@ -5,7 +5,7 @@ from pathlib import Path
 
 APP_NAME = "ByteCase Intake"
 APP_SUBTITLE = "Digital Forensics Request Builder"
-APP_VERSION = "0.6.0"
+APP_VERSION = "0.7.0"
 
 SUITE_NAME = "ByteCase"
 PUBLISHER_NAME = "Forensics Byte"

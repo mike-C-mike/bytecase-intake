@@ -17,7 +17,76 @@ from settings_service import (
 )
 
 SCHEMA_NAME = "bytecase_digital_forensics_request_packet"
-SCHEMA_VERSION = "0.6"
+SCHEMA_VERSION = "0.7"
+
+COMMON_ITEM_FIELDS = [
+    ("item_number", "Item Number"),
+    ("evidence_number", "Evidence Number"),
+    ("device_or_media_type", "Device / Media Type"),
+    ("short_description", "Short Description"),
+    ("condition_received", "Condition Received"),
+    ("packaging_seal_info", "Packaging / Seal Information"),
+    ("item_notes", "Item Notes"),
+]
+
+TYPE_SPECIFIC_LABELS = {
+    "make_model": "Make / Model",
+    "serial_number": "Serial Number",
+    "imei_meid": "IMEI / MEID",
+    "phone_number": "Phone Number",
+    "carrier": "Carrier",
+    "sim_present": "SIM Present",
+    "storage_capacity": "Storage Capacity",
+    "power_lock_state": "Power / Lock State",
+    "passcode_provided": "Passcode / Password Provided",
+    "known_account_info": "Known Account Info",
+    "serial_service_tag": "Serial / Service Tag",
+    "operating_system": "Operating System",
+    "storage_type": "Storage Type",
+    "power_state": "Power State",
+    "login_credentials_provided": "Login Credentials Provided",
+    "known_user_account": "Known User Account",
+    "brand_model": "Brand / Model",
+    "connector_type": "Connector Type",
+    "encryption_suspected": "Encryption Suspected",
+    "card_type": "Card Type",
+    "adapter_included": "Adapter Included",
+    "connection_type": "Connection Type",
+    "power_supply_included": "Power Supply Included",
+    "channel_count": "Channel Count",
+    "date_time_setting": "Date / Time Setting",
+    "export_format": "Export Format",
+    "network_info": "Network Info",
+    "platform_provider": "Platform / Provider",
+    "account_identifier": "Account Identifier",
+    "return_export_date": "Return / Export Date",
+    "source_authority": "Source Authority",
+    "file_folder_location": "File / Folder Location",
+    "export_date": "Export Date",
+    "date_range": "Date Range",
+    "producing_party": "Producing Party",
+    "media_type": "Media Type",
+    "source_device_platform": "Source Device / Platform",
+    "file_folder_path": "File / Folder Path",
+    "provided_by": "Provided By",
+    "original_source_known": "Original Source Known",
+    "identifier": "Identifier",
+    "description": "Description",
+    "capacity_size": "Capacity / Size",
+    "source_origin": "Source / Origin",
+    "additional_details": "Additional Details",
+}
+
+LEGACY_TYPE_FIELD_MAP = {
+    "make_model": "make_model",
+    "serial_number": "serial_number",
+    "imei_meid": "imei_meid",
+    "phone_number": "phone_number",
+    "storage_capacity": "storage_capacity",
+    "power_lock_state": "power_lock_state",
+    "passcode_provided": "passcode_provided",
+    "known_account_info": "known_account_info",
+}
 
 
 def safe_filename(value, fallback="request"):
@@ -87,6 +156,80 @@ def normalize_attachment(attachment, index):
         "copied_path": str(attachment.get("copied_path", "")).strip(),
         "copy_error": str(attachment.get("copy_error", "")).strip(),
     }
+
+
+def normalize_evidence_item(item, index):
+    item_number = str(item.get("item_number", "")).strip() or str(index).zfill(3)
+    device_type = str(item.get("device_or_media_type", "")).strip()
+
+    type_specific = item.get("type_specific", {})
+    if not isinstance(type_specific, dict):
+        type_specific = {}
+
+    cleaned_type_specific = {}
+    for key, value in type_specific.items():
+        value = str(value or "").strip()
+        if value:
+            cleaned_type_specific[str(key).strip()] = value
+
+    # Backward compatibility for v0.6 flat item fields.
+    for legacy_key, type_key in LEGACY_TYPE_FIELD_MAP.items():
+        value = str(item.get(legacy_key, "")).strip()
+        if value and type_key not in cleaned_type_specific:
+            cleaned_type_specific[type_key] = value
+
+    return {
+        "item_number": item_number,
+        "evidence_number": str(item.get("evidence_number", "")).strip(),
+        "device_or_media_type": device_type,
+        "short_description": str(item.get("short_description", "")).strip(),
+        "condition_received": str(item.get("condition_received", "")).strip(),
+        "packaging_seal_info": str(item.get("packaging_seal_info", "")).strip(),
+        "type_specific": cleaned_type_specific,
+        "item_notes": str(item.get("item_notes", "")).strip(),
+    }
+
+
+def get_item_rows(item):
+    rows = []
+
+    for key, label in COMMON_ITEM_FIELDS:
+        value = item.get(key, "")
+        if value:
+            rows.append((label, value))
+
+    type_specific = item.get("type_specific", {})
+    if isinstance(type_specific, dict):
+        for key, value in type_specific.items():
+            value = str(value or "").strip()
+            if not value:
+                continue
+            rows.append((TYPE_SPECIFIC_LABELS.get(key, key.replace("_", " ").title()), value))
+
+    return rows
+
+
+def summarize_item_type_specific(item, max_parts=3):
+    type_specific = item.get("type_specific", {})
+    if not isinstance(type_specific, dict):
+        return ""
+
+    parts = []
+    priority_keys = [
+        "make_model", "brand_model", "platform_provider", "media_type",
+        "serial_number", "serial_service_tag", "storage_capacity", "phone_number",
+        "account_identifier", "file_folder_path", "file_folder_location",
+    ]
+
+    for key in priority_keys:
+        value = str(type_specific.get(key, "")).strip()
+        if value:
+            label = TYPE_SPECIFIC_LABELS.get(key, key.replace("_", " ").title())
+            parts.append(f"{label}: {value}")
+        if len(parts) >= max_parts:
+            break
+
+    return "; ".join(parts)
 
 
 def copy_attachments_to_export_folder(packet, request_folder):
@@ -180,7 +323,10 @@ def build_request_packet(
             "authorized_keywords": str(scope.get("authorized_keywords", "")).strip(),
             "scope_notes": str(scope.get("scope_notes", "")).strip(),
         },
-        "evidence_items": [clean_dict(item) for item in evidence_items],
+        "evidence_items": [
+            normalize_evidence_item(item, index)
+            for index, item in enumerate(evidence_items, start=1)
+        ],
         "attachments": [
             normalize_attachment(attachment, index)
             for index, attachment in enumerate(attachments, start=1)
@@ -199,7 +345,7 @@ def build_request_packet(
         "handoff_info": clean_dict(handoff),
         "report_options": {
             "include_acknowledgement_block": bool(include_acknowledgement_block),
-            "export_style": "bytecase_case_folder_with_attachments",
+            "export_style": "bytecase_case_folder_with_adaptive_item_templates",
         },
         "disclaimer": (
             "This request packet documents information provided for a digital forensic request. "
@@ -312,25 +458,8 @@ def build_txt_request(packet):
             lines.append(f"Item {index}")
             lines.append("~" * 40)
 
-            rows = [
-                ("Item Number", item.get("item_number", "")),
-                ("Evidence Number", item.get("evidence_number", "")),
-                ("Device / Media Type", item.get("device_or_media_type", "")),
-                ("Make / Model", item.get("make_model", "")),
-                ("Serial Number", item.get("serial_number", "")),
-                ("IMEI / MEID", item.get("imei_meid", "")),
-                ("Phone Number", item.get("phone_number", "")),
-                ("Storage Capacity", item.get("storage_capacity", "")),
-                ("Condition Received", item.get("condition_received", "")),
-                ("Power / Lock State", item.get("power_lock_state", "")),
-                ("Passcode / Password Provided", item.get("passcode_provided", "")),
-                ("Known Account Info", item.get("known_account_info", "")),
-                ("Item Notes", item.get("item_notes", "")),
-            ]
-
-            for label, value in rows:
-                if value:
-                    lines.append(f"{label}: {value}")
+            for label, value in get_item_rows(item):
+                lines.append(f"{label}: {value}")
 
             lines.append("")
 

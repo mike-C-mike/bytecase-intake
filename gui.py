@@ -37,9 +37,11 @@ DEVICE_MEDIA_TYPES = [
     "Mobile Phone",
     "Tablet",
     "Computer / Laptop",
+    "External Hard Drive / SSD",
     "External Hard Drive",
     "USB Drive",
     "SD / Memory Card",
+    "DVR / NVR",
     "Cloud Return",
     "Social Media Export",
     "Email Export",
@@ -123,17 +125,179 @@ def blank_item():
         "item_number": "",
         "evidence_number": "",
         "device_or_media_type": "",
-        "make_model": "",
-        "serial_number": "",
-        "imei_meid": "",
-        "phone_number": "",
-        "storage_capacity": "",
+        "short_description": "",
         "condition_received": "",
-        "power_lock_state": "",
-        "passcode_provided": "",
-        "known_account_info": "",
+        "packaging_seal_info": "",
+        "type_specific": {},
         "item_notes": "",
     }
+
+
+DEVICE_FIELD_TEMPLATES = {
+    "Mobile Phone": [
+        ("make_model", "Make / Model"),
+        ("serial_number", "Serial Number"),
+        ("imei_meid", "IMEI / MEID"),
+        ("phone_number", "Phone Number"),
+        ("carrier", "Carrier"),
+        ("sim_present", "SIM Present"),
+        ("storage_capacity", "Storage Capacity"),
+        ("power_lock_state", "Power / Lock State"),
+        ("passcode_provided", "Passcode Provided"),
+        ("known_account_info", "Known Account Info"),
+    ],
+    "Tablet": [
+        ("make_model", "Make / Model"),
+        ("serial_number", "Serial Number"),
+        ("imei_meid", "IMEI / MEID"),
+        ("phone_number", "Phone Number"),
+        ("carrier", "Carrier"),
+        ("sim_present", "SIM Present"),
+        ("storage_capacity", "Storage Capacity"),
+        ("power_lock_state", "Power / Lock State"),
+        ("passcode_provided", "Passcode Provided"),
+        ("known_account_info", "Known Account Info"),
+    ],
+    "Computer / Laptop": [
+        ("make_model", "Make / Model"),
+        ("serial_service_tag", "Serial / Service Tag"),
+        ("operating_system", "Operating System"),
+        ("storage_type", "Storage Type"),
+        ("storage_capacity", "Storage Capacity"),
+        ("power_state", "Power State"),
+        ("login_credentials_provided", "Login Credentials Provided"),
+        ("known_user_account", "Known User Account"),
+    ],
+    "USB Drive": [
+        ("brand_model", "Brand / Model"),
+        ("serial_number", "Serial Number"),
+        ("storage_capacity", "Storage Capacity"),
+        ("connector_type", "Connector Type"),
+        ("encryption_suspected", "Encryption Suspected"),
+    ],
+    "SD / Memory Card": [
+        ("brand_model", "Brand / Model"),
+        ("serial_number", "Serial Number"),
+        ("storage_capacity", "Storage Capacity"),
+        ("card_type", "Card Type"),
+        ("adapter_included", "Adapter Included"),
+    ],
+    "External Hard Drive": [
+        ("brand_model", "Brand / Model"),
+        ("serial_number", "Serial Number"),
+        ("storage_capacity", "Storage Capacity"),
+        ("connection_type", "Connection Type"),
+        ("encryption_suspected", "Encryption Suspected"),
+        ("power_supply_included", "Power Supply Included"),
+    ],
+    "External Hard Drive / SSD": [
+        ("brand_model", "Brand / Model"),
+        ("serial_number", "Serial Number"),
+        ("storage_capacity", "Storage Capacity"),
+        ("connection_type", "Connection Type"),
+        ("encryption_suspected", "Encryption Suspected"),
+        ("power_supply_included", "Power Supply Included"),
+    ],
+    "DVR / NVR": [
+        ("brand_model", "Brand / Model"),
+        ("serial_number", "Serial Number"),
+        ("storage_capacity", "Storage Capacity"),
+        ("channel_count", "Channel Count"),
+        ("date_time_setting", "Date / Time Setting"),
+        ("export_format", "Export Format"),
+        ("login_credentials_provided", "Login Credentials Provided"),
+        ("network_info", "Network Info"),
+        ("power_supply_included", "Power Supply Included"),
+    ],
+    "Cloud Return": [
+        ("platform_provider", "Platform / Provider"),
+        ("account_identifier", "Account Identifier"),
+        ("return_export_date", "Return / Export Date"),
+        ("export_format", "Export Format"),
+        ("source_authority", "Source Authority"),
+        ("file_folder_location", "File / Folder Location"),
+    ],
+    "Social Media Export": [
+        ("platform_provider", "Platform / Provider"),
+        ("account_identifier", "Account Identifier"),
+        ("export_date", "Export Date"),
+        ("export_format", "Export Format"),
+        ("date_range", "Date Range"),
+        ("producing_party", "Producing Party"),
+    ],
+    "Email Export": [
+        ("platform_provider", "Platform / Provider"),
+        ("account_identifier", "Account Identifier"),
+        ("export_date", "Export Date"),
+        ("export_format", "Export Format"),
+        ("date_range", "Date Range"),
+        ("producing_party", "Producing Party"),
+    ],
+    "Photo / Video Files": [
+        ("media_type", "Media Type"),
+        ("source_device_platform", "Source Device / Platform"),
+        ("file_folder_path", "File / Folder Path"),
+        ("date_range", "Date Range"),
+        ("provided_by", "Provided By"),
+        ("original_source_known", "Original Source Known"),
+    ],
+    "Other Digital Media": [
+        ("identifier", "Identifier"),
+        ("description", "Description"),
+        ("capacity_size", "Capacity / Size"),
+        ("source_origin", "Source / Origin"),
+        ("additional_details", "Additional Details"),
+    ],
+}
+
+
+def normalize_item_for_gui(item):
+    normalized = blank_item()
+    normalized.update({
+        "item_number": item.get("item_number", ""),
+        "evidence_number": item.get("evidence_number", ""),
+        "device_or_media_type": item.get("device_or_media_type", ""),
+        "short_description": item.get("short_description", ""),
+        "condition_received": item.get("condition_received", ""),
+        "packaging_seal_info": item.get("packaging_seal_info", ""),
+        "item_notes": item.get("item_notes", ""),
+    })
+
+    type_specific = item.get("type_specific", {})
+    if not isinstance(type_specific, dict):
+        type_specific = {}
+
+    normalized["type_specific"] = {key: str(value or "") for key, value in type_specific.items()}
+
+    legacy_fields = [
+        "make_model", "serial_number", "imei_meid", "phone_number", "storage_capacity",
+        "power_lock_state", "passcode_provided", "known_account_info",
+    ]
+
+    for key in legacy_fields:
+        value = item.get(key, "")
+        if value and key not in normalized["type_specific"]:
+            normalized["type_specific"][key] = value
+
+    return normalized
+
+
+def summarize_item_details(item):
+    item = normalize_item_for_gui(item)
+    type_specific = item.get("type_specific", {})
+    priority_keys = [
+        "make_model", "brand_model", "platform_provider", "media_type", "serial_number",
+        "serial_service_tag", "storage_capacity", "phone_number", "account_identifier",
+        "file_folder_path", "file_folder_location",
+    ]
+    values = []
+    for key in priority_keys:
+        value = str(type_specific.get(key, "")).strip()
+        if value:
+            values.append(value)
+        if len(values) >= 3:
+            break
+    return " | ".join(values)
 
 
 class DigitalForensicsRequestApp:
@@ -359,23 +523,23 @@ class DigitalForensicsRequestApp:
         table_frame.columnconfigure(0, weight=1)
         table_frame.rowconfigure(0, weight=1)
 
-        columns = ("item_number", "evidence_number", "type", "make_model", "serial", "phone")
+        columns = ("item_number", "evidence_number", "type", "description", "details", "condition")
         self.items_tree = ttk.Treeview(table_frame, columns=columns, show="headings", height=14)
         headings = {
             "item_number": "Item #",
             "evidence_number": "Evidence #",
             "type": "Type",
-            "make_model": "Make / Model",
-            "serial": "Serial",
-            "phone": "Phone",
+            "description": "Short Description",
+            "details": "Key Details",
+            "condition": "Condition",
         }
         widths = {
             "item_number": 90,
             "evidence_number": 130,
-            "type": 180,
-            "make_model": 220,
-            "serial": 180,
-            "phone": 140,
+            "type": 170,
+            "description": 260,
+            "details": 300,
+            "condition": 180,
         }
         for column in columns:
             self.items_tree.heading(column, text=headings[column])
@@ -663,7 +827,9 @@ class DigitalForensicsRequestApp:
     def refresh_items_table(self):
         for row in self.items_tree.get_children():
             self.items_tree.delete(row)
+
         for index, item in enumerate(self.evidence_items):
+            item = normalize_item_for_gui(item)
             self.items_tree.insert(
                 "",
                 "end",
@@ -672,11 +838,12 @@ class DigitalForensicsRequestApp:
                     item.get("item_number", ""),
                     item.get("evidence_number", ""),
                     item.get("device_or_media_type", ""),
-                    item.get("make_model", ""),
-                    item.get("serial_number", ""),
-                    item.get("phone_number", ""),
+                    item.get("short_description", ""),
+                    summarize_item_details(item),
+                    item.get("condition_received", ""),
                 ),
             )
+
         self.item_count_var.set(f"Evidence items: {len(self.evidence_items)}")
 
     def add_attachment(self):
@@ -1182,67 +1349,132 @@ class ItemWindow:
     def __init__(self, app, title, item=None, index=None):
         self.app = app
         self.index = index
-        self.item = item or blank_item()
+        self.item = normalize_item_for_gui(item or blank_item())
+        self.type_specific_vars = {}
+
         self.window = tk.Toplevel(app.root)
         self.window.title(title)
-        self.window.geometry("780x560")
+        self.window.geometry("900x720")
         self.window.transient(app.root)
         self.window.grab_set()
         self.window.configure(bg=app.colors["bg"])
+
         self.vars = {}
         self.build()
         self.load_item()
+        self.rebuild_type_specific_fields()
 
     def build(self):
-        frame = ttk.Frame(self.window, padding=10)
-        frame.pack(fill="both", expand=True)
-        frame.columnconfigure(1, weight=1)
-        frame.columnconfigure(3, weight=1)
+        outer = ttk.Frame(self.window, padding=10)
+        outer.pack(fill="both", expand=True)
+        outer.columnconfigure(0, weight=1)
+        outer.rowconfigure(1, weight=1)
 
-        fields = [
+        common_frame = ttk.LabelFrame(outer, text="Common Item Fields", padding=10)
+        common_frame.grid(row=0, column=0, sticky="ew")
+        common_frame.columnconfigure(1, weight=1)
+        common_frame.columnconfigure(3, weight=1)
+
+        common_fields = [
             ("item_number", "Item Number", 0, 0),
             ("evidence_number", "Evidence Number", 0, 2),
             ("device_or_media_type", "Device / Media Type", 1, 0),
-            ("make_model", "Make / Model", 1, 2),
-            ("serial_number", "Serial Number", 2, 0),
-            ("imei_meid", "IMEI / MEID", 2, 2),
-            ("phone_number", "Phone Number", 3, 0),
-            ("storage_capacity", "Storage Capacity", 3, 2),
-            ("condition_received", "Condition Received", 4, 0),
-            ("power_lock_state", "Power / Lock State", 4, 2),
-            ("passcode_provided", "Passcode / Password Provided", 5, 0),
-            ("known_account_info", "Known Account Info", 5, 2),
+            ("short_description", "Short Description", 1, 2),
+            ("condition_received", "Condition Received", 2, 0),
+            ("packaging_seal_info", "Packaging / Seal Information", 2, 2),
         ]
 
-        for key, label, row, column in fields:
+        for key, label, row, column in common_fields:
             self.vars[key] = tk.StringVar()
-            ttk.Label(frame, text=label).grid(row=row, column=column, sticky="w", pady=5)
-            if key == "device_or_media_type":
-                ttk.Combobox(frame, textvariable=self.vars[key], values=DEVICE_MEDIA_TYPES, state="readonly").grid(row=row, column=column + 1, sticky="ew", pady=5)
-            else:
-                ttk.Entry(frame, textvariable=self.vars[key]).grid(row=row, column=column + 1, sticky="ew", pady=5)
+            ttk.Label(common_frame, text=label).grid(row=row, column=column, sticky="w", pady=5)
 
-        ttk.Label(frame, text="Item Notes").grid(row=6, column=0, sticky="nw", pady=5)
-        self.item_notes_text = tk.Text(frame, height=10, width=80)
-        self.item_notes_text.grid(row=6, column=1, columnspan=3, sticky="nsew", pady=5)
+            if key == "device_or_media_type":
+                combo = ttk.Combobox(
+                    common_frame,
+                    textvariable=self.vars[key],
+                    values=DEVICE_MEDIA_TYPES,
+                    state="readonly",
+                )
+                combo.grid(row=row, column=column + 1, sticky="ew", pady=5)
+                combo.bind("<<ComboboxSelected>>", lambda event: self.rebuild_type_specific_fields())
+            else:
+                ttk.Entry(common_frame, textvariable=self.vars[key]).grid(row=row, column=column + 1, sticky="ew", pady=5)
+
+        self.type_frame = ttk.LabelFrame(outer, text="Type-Specific Details", padding=10)
+        self.type_frame.grid(row=1, column=0, sticky="nsew", pady=(10, 0))
+        self.type_frame.columnconfigure(1, weight=1)
+        self.type_frame.columnconfigure(3, weight=1)
+
+        notes_frame = ttk.LabelFrame(outer, text="Item Notes", padding=10)
+        notes_frame.grid(row=2, column=0, sticky="nsew", pady=(10, 0))
+        notes_frame.columnconfigure(0, weight=1)
+
+        self.item_notes_text = tk.Text(notes_frame, height=7, width=90)
+        self.item_notes_text.grid(row=0, column=0, sticky="nsew")
         self.app.style_text(self.item_notes_text)
 
-        helper = "Only capture information useful to route or scope the request. Detailed examiner work belongs in the acquisition packet."
-        ttk.Label(frame, text=helper, style="Muted.TLabel", wraplength=720).grid(row=7, column=0, columnspan=4, sticky="w", pady=(8, 0))
+        helper = (
+            "Common fields apply to every submitted item. Type-specific fields change based on the selected device/media type. "
+            "Only populated fields are included in TXT, DOCX, and JSON outputs."
+        )
+        ttk.Label(outer, text=helper, style="Muted.TLabel", wraplength=840).grid(row=3, column=0, sticky="w", pady=(8, 0))
 
         button_frame = ttk.Frame(self.window, padding=10)
         button_frame.pack(fill="x")
         ttk.Button(button_frame, text="Save Item", command=self.save).pack(side="right", padx=4)
         ttk.Button(button_frame, text="Cancel", command=self.window.destroy).pack(side="right", padx=4)
 
+    def rebuild_type_specific_fields(self):
+        existing_values = {
+            key: variable.get().strip()
+            for key, variable in self.type_specific_vars.items()
+        }
+
+        for child in self.type_frame.winfo_children():
+            child.destroy()
+
+        self.type_specific_vars = {}
+        device_type = self.vars.get("device_or_media_type", tk.StringVar()).get()
+        fields = DEVICE_FIELD_TEMPLATES.get(device_type, [])
+
+        if not fields:
+            ttk.Label(
+                self.type_frame,
+                text="Select a device/media type to show relevant fields.",
+                style="Muted.TLabel",
+            ).grid(row=0, column=0, columnspan=4, sticky="w")
+            return
+
+        for index, (key, label) in enumerate(fields):
+            row = index // 2
+            column = 0 if index % 2 == 0 else 2
+            self.type_specific_vars[key] = tk.StringVar(value=existing_values.get(key, self.item.get("type_specific", {}).get(key, "")))
+
+            ttk.Label(self.type_frame, text=label).grid(row=row, column=column, sticky="w", pady=5)
+            ttk.Entry(self.type_frame, textvariable=self.type_specific_vars[key]).grid(row=row, column=column + 1, sticky="ew", pady=5)
+
     def load_item(self):
         for key, variable in self.vars.items():
             variable.set(self.item.get(key, ""))
+
         self.item_notes_text.insert("1.0", self.item.get("item_notes", ""))
 
     def save(self):
-        item = {key: variable.get().strip() for key, variable in self.vars.items()}
-        item["item_notes"] = self.item_notes_text.get("1.0", "end").strip()
+        item = {
+            "item_number": self.vars["item_number"].get().strip(),
+            "evidence_number": self.vars["evidence_number"].get().strip(),
+            "device_or_media_type": self.vars["device_or_media_type"].get().strip(),
+            "short_description": self.vars["short_description"].get().strip(),
+            "condition_received": self.vars["condition_received"].get().strip(),
+            "packaging_seal_info": self.vars["packaging_seal_info"].get().strip(),
+            "type_specific": {
+                key: variable.get().strip()
+                for key, variable in self.type_specific_vars.items()
+                if variable.get().strip()
+            },
+            "item_notes": self.item_notes_text.get("1.0", "end").strip(),
+        }
+
         self.app.save_item(item, self.index)
         self.window.destroy()
 

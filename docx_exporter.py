@@ -6,6 +6,75 @@ from docx.shared import Inches, Pt
 
 SUPPORTED_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg"}
 
+COMMON_ITEM_FIELDS = [
+    ("item_number", "Item Number"),
+    ("evidence_number", "Evidence Number"),
+    ("device_or_media_type", "Device / Media Type"),
+    ("short_description", "Short Description"),
+    ("condition_received", "Condition Received"),
+    ("packaging_seal_info", "Packaging / Seal Information"),
+    ("item_notes", "Item Notes"),
+]
+
+TYPE_SPECIFIC_LABELS = {
+    "make_model": "Make / Model",
+    "serial_number": "Serial Number",
+    "imei_meid": "IMEI / MEID",
+    "phone_number": "Phone Number",
+    "carrier": "Carrier",
+    "sim_present": "SIM Present",
+    "storage_capacity": "Storage Capacity",
+    "power_lock_state": "Power / Lock State",
+    "passcode_provided": "Passcode / Password Provided",
+    "known_account_info": "Known Account Info",
+    "serial_service_tag": "Serial / Service Tag",
+    "operating_system": "Operating System",
+    "storage_type": "Storage Type",
+    "power_state": "Power State",
+    "login_credentials_provided": "Login Credentials Provided",
+    "known_user_account": "Known User Account",
+    "brand_model": "Brand / Model",
+    "connector_type": "Connector Type",
+    "encryption_suspected": "Encryption Suspected",
+    "card_type": "Card Type",
+    "adapter_included": "Adapter Included",
+    "connection_type": "Connection Type",
+    "power_supply_included": "Power Supply Included",
+    "channel_count": "Channel Count",
+    "date_time_setting": "Date / Time Setting",
+    "export_format": "Export Format",
+    "network_info": "Network Info",
+    "platform_provider": "Platform / Provider",
+    "account_identifier": "Account Identifier",
+    "return_export_date": "Return / Export Date",
+    "source_authority": "Source Authority",
+    "file_folder_location": "File / Folder Location",
+    "export_date": "Export Date",
+    "date_range": "Date Range",
+    "producing_party": "Producing Party",
+    "media_type": "Media Type",
+    "source_device_platform": "Source Device / Platform",
+    "file_folder_path": "File / Folder Path",
+    "provided_by": "Provided By",
+    "original_source_known": "Original Source Known",
+    "identifier": "Identifier",
+    "description": "Description",
+    "capacity_size": "Capacity / Size",
+    "source_origin": "Source / Origin",
+    "additional_details": "Additional Details",
+}
+
+LEGACY_TYPE_FIELD_MAP = {
+    "make_model": "make_model",
+    "serial_number": "serial_number",
+    "imei_meid": "imei_meid",
+    "phone_number": "phone_number",
+    "storage_capacity": "storage_capacity",
+    "power_lock_state": "power_lock_state",
+    "passcode_provided": "passcode_provided",
+    "known_account_info": "known_account_info",
+}
+
 
 def set_document_defaults(document):
     section = document.sections[0]
@@ -46,12 +115,32 @@ def add_branding_image(document, settings):
 
 
 def add_key_value_table(document, rows):
+    filtered_rows = [(label, value) for label, value in rows if str(value or "").strip()]
+
+    if not filtered_rows:
+        document.add_paragraph("No information provided.")
+        return
+
     table = document.add_table(rows=0, cols=2)
     table.style = "Table Grid"
+
+    for label, value in filtered_rows:
+        cells = table.add_row().cells
+        cells[0].text = str(label)
+        cells[1].text = str(value or "")
+
+    document.add_paragraph()
+
+
+def add_key_value_table_allow_empty(document, rows):
+    table = document.add_table(rows=0, cols=2)
+    table.style = "Table Grid"
+
     for label, value in rows:
         cells = table.add_row().cells
         cells[0].text = str(label)
         cells[1].text = str(value or "")
+
     document.add_paragraph()
 
 
@@ -68,6 +157,43 @@ def add_text_section(document, heading, text):
     document.add_paragraph(text or "")
 
 
+def get_type_specific(item):
+    type_specific = item.get("type_specific", {})
+
+    if not isinstance(type_specific, dict):
+        type_specific = {}
+
+    cleaned = {}
+
+    for key, value in type_specific.items():
+        value = str(value or "").strip()
+        if value:
+            cleaned[str(key).strip()] = value
+
+    for legacy_key, type_key in LEGACY_TYPE_FIELD_MAP.items():
+        value = str(item.get(legacy_key, "")).strip()
+        if value and type_key not in cleaned:
+            cleaned[type_key] = value
+
+    return cleaned
+
+
+def get_item_rows(item):
+    rows = []
+
+    for key, label in COMMON_ITEM_FIELDS:
+        value = item.get(key, "")
+        if value:
+            rows.append((label, value))
+
+    type_specific = get_type_specific(item)
+
+    for key, value in type_specific.items():
+        rows.append((TYPE_SPECIFIC_LABELS.get(key, key.replace("_", " ").title()), value))
+
+    return rows
+
+
 def add_evidence_items(document, items):
     document.add_heading("Evidence / Device Items", level=1)
 
@@ -76,22 +202,16 @@ def add_evidence_items(document, items):
         return
 
     for index, item in enumerate(items, start=1):
-        document.add_heading(f"Item {index}", level=2)
-        add_key_value_table(document, [
-            ("Item Number", item.get("item_number", "")),
-            ("Evidence Number", item.get("evidence_number", "")),
-            ("Device / Media Type", item.get("device_or_media_type", "")),
-            ("Make / Model", item.get("make_model", "")),
-            ("Serial Number", item.get("serial_number", "")),
-            ("IMEI / MEID", item.get("imei_meid", "")),
-            ("Phone Number", item.get("phone_number", "")),
-            ("Storage Capacity", item.get("storage_capacity", "")),
-            ("Condition Received", item.get("condition_received", "")),
-            ("Power / Lock State", item.get("power_lock_state", "")),
-            ("Passcode / Password Provided", item.get("passcode_provided", "")),
-            ("Known Account Info", item.get("known_account_info", "")),
-            ("Item Notes", item.get("item_notes", "")),
-        ])
+        item_number = item.get("item_number", "") or str(index).zfill(3)
+        device_type = item.get("device_or_media_type", "")
+        heading_text = f"Item {item_number}"
+
+        if device_type:
+            heading_text += f" - {device_type}"
+
+        document.add_heading(heading_text, level=2)
+        add_key_value_table(document, get_item_rows(item))
+
 
 def add_attachments(document, attachments):
     document.add_heading("Attachment Index", level=1)
@@ -124,6 +244,7 @@ def add_attachments(document, attachments):
             ("Notes", attachment.get("notes", "")),
         ])
 
+
 def build_docx_request(packet, settings):
     document = Document()
     set_document_defaults(document)
@@ -143,9 +264,26 @@ def build_docx_request(packet, settings):
 
     title = document.add_paragraph()
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = title.add_run("DIGITAL FORENSICS REQUEST PACKET")
+    run = title.add_run("BYTECASE INTAKE")
     run.bold = True
     run.font.size = Pt(16)
+
+    subtitle = document.add_paragraph()
+    subtitle.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    subtitle_run = subtitle.add_run("Digital Forensics Request Packet")
+    subtitle_run.bold = True
+    subtitle_run.font.size = Pt(12)
+
+    attribution = document.add_paragraph()
+    attribution.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    attribution.add_run(
+        f"Part of the {packet.get('suite_name', 'ByteCase')} toolset by {packet.get('publisher', 'Forensics Byte')}"
+    )
+
+    if packet.get("product_domain"):
+        domain = document.add_paragraph()
+        domain.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        domain.add_run(packet.get("product_domain", ""))
 
     if agency.get("agency_name") or agency.get("unit_name"):
         paragraph = document.add_paragraph()
@@ -160,21 +298,21 @@ def build_docx_request(packet, settings):
     document.add_paragraph()
 
     document.add_heading("Request Information", level=1)
-    add_key_value_table(document, [
-        ("Generated By", f"{packet.get('app_name', '')} v{packet.get('app_version', '')}"),
+    add_key_value_table_allow_empty(document, [
+        ("Generated By", f"{packet.get('app_name', '')} - {packet.get('app_subtitle', '')} v{packet.get('app_version', '')}"),
         ("Created At", packet.get("created_at", "")),
         ("Schema", f"{packet.get('schema_name', '')} v{packet.get('schema_version', '')}"),
     ])
 
     document.add_heading("Case Information", level=1)
-    add_key_value_table(document, [
+    add_key_value_table_allow_empty(document, [
         ("Case Number", case_info.get("case_number", "")),
         ("Agency Case Number", case_info.get("agency_case_number", "")),
         ("Offense / Incident Type", case_info.get("offense_type", "")),
     ])
 
     document.add_heading("Submitting Investigator", level=1)
-    add_key_value_table(document, [
+    add_key_value_table_allow_empty(document, [
         ("Submitting Agency", investigator.get("submitting_agency", "")),
         ("Submitting Unit", investigator.get("submitting_unit", "")),
         ("Submitting Investigator", investigator.get("submitting_investigator", "")),
@@ -184,7 +322,7 @@ def build_docx_request(packet, settings):
     ])
 
     document.add_heading("Legal Authority", level=1)
-    add_key_value_table(document, [
+    add_key_value_table_allow_empty(document, [
         ("Authority Type", authority.get("authority_type", "")),
         ("Authority Date", authority.get("authority_date", "")),
         ("Authority Reference / Document Number", authority.get("authority_reference", "")),
@@ -195,7 +333,7 @@ def build_docx_request(packet, settings):
     add_bullets(document, scope.get("scope_options", []))
 
     document.add_heading("Scope Limitations", level=1)
-    add_key_value_table(document, [
+    add_key_value_table_allow_empty(document, [
         ("Date Range Limited", "Yes" if scope.get("date_range_limited") else "No"),
         ("Authorized Date Range", scope.get("authorized_date_range", "")),
         ("Specific Apps / Platforms Limited", "Yes" if scope.get("specific_apps_limited") else "No"),
@@ -209,6 +347,7 @@ def build_docx_request(packet, settings):
 
     add_evidence_items(document, items)
     add_attachments(document, attachments)
+
     document.add_heading("Requested Forensic Actions", level=1)
     add_bullets(document, details.get("requested_actions", []))
 
@@ -216,7 +355,7 @@ def build_docx_request(packet, settings):
     add_text_section(document, "Known Facts / Context for Examiner", details.get("known_facts_for_examiner", ""))
 
     document.add_heading("Priority / Urgency", level=1)
-    add_key_value_table(document, [
+    add_key_value_table_allow_empty(document, [
         ("Priority", priority.get("priority", "")),
         ("Requested Due Date", priority.get("requested_due_date", "")),
     ])
@@ -225,7 +364,7 @@ def build_docx_request(packet, settings):
     add_text_section(document, "Priority Notes", priority.get("priority_notes", ""))
 
     document.add_heading("Submission / Handoff", level=1)
-    add_key_value_table(document, [
+    add_key_value_table_allow_empty(document, [
         ("Transfer Method", handoff.get("transfer_method", "")),
         ("Packaging / Seal Information", handoff.get("packaging_seal_info", "")),
         ("Handoff Notes", handoff.get("handoff_notes", "")),
@@ -236,7 +375,7 @@ def build_docx_request(packet, settings):
 
     if options.get("include_acknowledgement_block"):
         document.add_heading("Submission Acknowledgement", level=1)
-        add_key_value_table(document, [
+        add_key_value_table_allow_empty(document, [
             ("Submitted By", investigator.get("submitting_investigator", "")),
             ("Date", ""),
         ])
@@ -247,7 +386,7 @@ def build_docx_request(packet, settings):
         document.add_paragraph("Date / Time Received: _______________________________")
 
     document.add_paragraph()
-    end = document.add_paragraph("End of Digital Forensics Request Packet")
+    end = document.add_paragraph("End of ByteCase Intake Request Packet")
     end.alignment = WD_ALIGN_PARAGRAPH.CENTER
     return document
 
